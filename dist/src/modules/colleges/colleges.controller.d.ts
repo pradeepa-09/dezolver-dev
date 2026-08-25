@@ -11,29 +11,29 @@ export declare class CollegesController {
     }): Promise<{
         college: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
             name: string;
             domain: string | null;
             status: string;
-            createdAt: Date;
-            updatedAt: Date;
         };
         financeUser: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
             email: string;
             role: import("@prisma/client").$Enums.Role;
             isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
             collegeId: string | null;
         };
     }>;
     findAll(): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }[]>;
     findOne(id: string): Promise<{
         users: {
@@ -44,11 +44,11 @@ export declare class CollegesController {
         }[];
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     update(id: string, updateCollegeDto: UpdateCollegeDto, req: {
         user: {
@@ -56,11 +56,11 @@ export declare class CollegesController {
         };
     }): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     suspend(id: string, req: {
         user: {
@@ -68,11 +68,11 @@ export declare class CollegesController {
         };
     }): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     reactivate(id: string, req: {
         user: {
@@ -80,11 +80,11 @@ export declare class CollegesController {
         };
     }): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     impersonate(id: string, req: {
         user: {

@@ -9,29 +9,29 @@ export declare class CollegesService {
     create(createCollegeDto: CreateCollegeDto, actorId: string): Promise<{
         college: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
             name: string;
             domain: string | null;
             status: string;
-            createdAt: Date;
-            updatedAt: Date;
         };
         financeUser: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
             email: string;
             role: import("@prisma/client").$Enums.Role;
             isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
             collegeId: string | null;
         };
     }>;
     findAll(): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }[]>;
     findOne(id: string): Promise<{
         users: {
@@ -42,35 +42,35 @@ export declare class CollegesService {
         }[];
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     update(id: string, updateCollegeDto: UpdateCollegeDto, actorId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     suspend(id: string, actorId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     reactivate(id: string, actorId: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
         domain: string | null;
         status: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     impersonate(id: string, superAdminId: string): Promise<{
         accessToken: string;

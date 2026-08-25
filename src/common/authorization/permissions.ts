@@ -6,7 +6,12 @@ export type Permission =
   | 'colleges:create'
   | 'colleges:update'
   | 'colleges:manage_status'
-  | 'colleges:impersonate';
+  | 'colleges:impersonate'
+  | 'plans:read'
+  | 'plans:create'
+  | 'plans:update'
+  | 'plans:manage_status'
+  | 'analytics:read';
 
 export const RolePermissions: Record<Role, Permission[]> = {
   [Role.SUPER_ADMIN]: [
@@ -16,6 +21,11 @@ export const RolePermissions: Record<Role, Permission[]> = {
     'colleges:update',
     'colleges:manage_status',
     'colleges:impersonate',
+    'plans:read',
+    'plans:create',
+    'plans:update',
+    'plans:manage_status',
+    'analytics:read',
   ],
   [Role.ADMIN]: [],
   [Role.USER]: [],
