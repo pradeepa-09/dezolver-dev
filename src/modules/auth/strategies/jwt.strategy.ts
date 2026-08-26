@@ -21,6 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   validate(payload: {
     sub: string;
     role: string;
+    collegeId?: string;
     isImpersonation?: boolean;
     impersonatorId?: string;
     targetCollegeId?: string;
@@ -31,6 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       id: payload.sub,
       role: payload.role,
+      collegeId: payload.collegeId,
       isImpersonation: payload.isImpersonation,
       impersonatorId: payload.impersonatorId,
       targetCollegeId: payload.targetCollegeId,

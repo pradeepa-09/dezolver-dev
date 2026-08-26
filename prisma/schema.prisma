@@ -17,9 +17,11 @@ model User {
   email     String   @unique
   password  String
   role      Role     @default(USER)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive    Boolean  @default(true)
+  mfaEnabled  Boolean  @default(false)
+  mfaSecret   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   collegeId String?
   college   College? @relation(fields: [collegeId], references: [id])

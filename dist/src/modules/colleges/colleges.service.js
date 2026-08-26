@@ -231,10 +231,13 @@ let CollegesService = class CollegesService {
         await this.prisma.auditLog.create({
             data: {
                 action: 'IMPERSONATION_ENDED',
-                actorId: actorUser.impersonatorId,
+                actorId: actorUser.id,
                 targetId: actorUser.id,
                 targetType: 'User',
-                metadata: { targetCollegeId: actorUser.targetCollegeId },
+                metadata: {
+                    targetCollegeId: actorUser.targetCollegeId,
+                    impersonatorId: actorUser.impersonatorId,
+                },
             },
         });
         return { success: true };

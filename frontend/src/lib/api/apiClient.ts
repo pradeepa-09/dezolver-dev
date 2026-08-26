@@ -20,6 +20,22 @@ class ApiClient {
   private accessToken: string | null = null;
   private isRefreshing = false;
   private refreshSubscribers: Array<(token: string | null) => void> = [];
+  private onUnauthorizedCallback: (() => void) | null = null;
+  private onForbiddenCallback: (() => void) | null = null;
+
+  /**
+   * Register a listener when authentication is revoked/unauthorized (e.g. 401 and refresh fails)
+   */
+  public setOnUnauthorized(callback: (() => void) | null): void {
+    this.onUnauthorizedCallback = callback;
+  }
+
+  /**
+   * Register a listener when access is forbidden (403)
+   */
+  public setOnForbidden(callback: (() => void) | null): void {
+    this.onForbiddenCallback = callback;
+  }
 
   /**
    * Set or clear the in-memory access token
@@ -122,6 +138,9 @@ class ApiClient {
       if (refreshed && this.accessToken) {
         // Retry the original request with the new access token
         return this.request<T>(endpoint, options);
+      }
+      if (this.onUnauthorizedCallback) {
+        this.onUnauthorizedCallback();
       }
       throw new UnauthorizedError();
     }
@@ -267,6 +286,9 @@ class ApiClient {
     }
 
     if (response.status === 403) {
+      if (this.onForbiddenCallback) {
+        this.onForbiddenCallback();
+      }
       throw new ForbiddenError(fallbackMessage);
     }
 

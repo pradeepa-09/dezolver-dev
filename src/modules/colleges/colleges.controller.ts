@@ -30,7 +30,7 @@ export class CollegesController {
   }
 
   @Get()
-  @RequirePermission('colleges:read')
+  @RequirePermission('colleges:list')
   findAll() {
     return this.collegesService.findAll();
   }

@@ -5,6 +5,9 @@ import { AuthProvider } from '@/features/auth/context/AuthContext';
 import { ImpersonationProvider } from '@/features/super-admin/colleges/context/ImpersonationContext';
 import { router } from './routes';
 
+import { ROUTES } from '@/config/routes';
+import { apiClient } from '@/lib/api/apiClient';
+
 // Instantiate TanStack Query Client with sensible production defaults
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +26,16 @@ const queryClient = new QueryClient({
 });
 
 export const App: React.FC = () => {
+  React.useEffect(() => {
+    apiClient.setOnForbidden(() => {
+      router.navigate(ROUTES.FORBIDDEN);
+    });
+
+    return () => {
+      apiClient.setOnForbidden(null);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

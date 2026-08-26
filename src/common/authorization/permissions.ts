@@ -2,6 +2,7 @@ import { Role } from '@prisma/client';
 
 export type Permission =
   | 'system:test'
+  | 'colleges:list'
   | 'colleges:read'
   | 'colleges:create'
   | 'colleges:update'
@@ -19,6 +20,7 @@ export type Permission =
 export const RolePermissions: Record<Role, Permission[]> = {
   [Role.SUPER_ADMIN]: [
     'system:test',
+    'colleges:list',
     'colleges:read',
     'colleges:create',
     'colleges:update',
@@ -33,6 +35,6 @@ export const RolePermissions: Record<Role, Permission[]> = {
     'subscriptions:create',
     'subscriptions:update',
   ],
-  [Role.ADMIN]: [],
+  [Role.ADMIN]: ['colleges:read'],
   [Role.USER]: [],
 };

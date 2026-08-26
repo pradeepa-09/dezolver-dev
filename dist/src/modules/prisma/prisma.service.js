@@ -14,12 +14,45 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const pg_1 = require("pg");
 const adapter_pg_1 = require("@prisma/adapter-pg");
+const nestjs_cls_1 = require("nestjs-cls");
 let PrismaService = class PrismaService extends client_1.PrismaClient {
-    constructor() {
+    cls;
+    constructor(cls) {
         const connectionString = process.env.DATABASE_URL;
         const pool = new pg_1.Pool({ connectionString });
         const adapter = new adapter_pg_1.PrismaPg(pool);
         super({ adapter });
+        this.cls = cls;
+        return this.$extends({
+            query: {
+                $allModels: {
+                    $allOperations: async ({ model, operation, args, query }) => {
+                        const role = cls.get('role');
+                        const collegeId = cls.get('collegeId');
+                        if (role && model && operation) {
+                            return this.$transaction(async (tx) => {
+                                await tx.$executeRawUnsafe(`SET LOCAL ROLE tenant_app`);
+                                await tx.$executeRawUnsafe(`SELECT set_config('app.current_role', $1, true)`, role);
+                                if (collegeId) {
+                                    await tx.$executeRawUnsafe(`SELECT set_config('app.current_college_id', $1, true)`, collegeId);
+                                }
+                                else {
+                                    await tx.$executeRawUnsafe(`SELECT set_config('app.current_college_id', '', true)`);
+                                }
+                                const txRecord = tx;
+                                const modelDelegate = txRecord[model];
+                                if (modelDelegate &&
+                                    typeof modelDelegate[operation] === 'function') {
+                                    return modelDelegate[operation](args);
+                                }
+                                return query(args);
+                            });
+                        }
+                        return query(args);
+                    },
+                },
+            },
+        });
     }
     async onModuleInit() {
         await this.$connect();
@@ -31,6 +64,6 @@ let PrismaService = class PrismaService extends client_1.PrismaClient {
 exports.PrismaService = PrismaService;
 exports.PrismaService = PrismaService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [nestjs_cls_1.ClsService])
 ], PrismaService);
 //# sourceMappingURL=prisma.service.js.map

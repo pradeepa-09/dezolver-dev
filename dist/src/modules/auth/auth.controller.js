@@ -18,27 +18,70 @@ const throttler_1 = require("@nestjs/throttler");
 const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
 const verify_otp_dto_1 = require("./dto/verify-otp.dto");
+const jwt_auth_guard_1 = require("./guards/jwt-auth.guard");
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
         this.authService = authService;
     }
     async login(loginDto, res) {
-        const { accessToken, refreshToken, user, refreshExpirationMs } = await this.authService.login(loginDto);
-        res.cookie('refreshToken', refreshToken, {
+        const result = await this.authService.login(loginDto);
+        if ('mfaRequired' in result && result.mfaRequired) {
+            return {
+                success: true,
+                data: {
+                    mfaRequired: true,
+                    mfaToken: result.mfaToken,
+                    user: result.user,
+                },
+            };
+        }
+        if ('refreshToken' in result) {
+            res.cookie('refreshToken', result.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: result.refreshExpirationMs,
+                path: '/api/auth',
+            });
+            return {
+                success: true,
+                data: {
+                    accessToken: result.accessToken,
+                    user: result.user,
+                },
+            };
+        }
+    }
+    async verifyOtp(verifyOtpDto, req, res) {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            throw new common_1.UnauthorizedException('MFA token is missing');
+        }
+        const mfaToken = authHeader.split(' ')[1];
+        const result = await this.authService.verifyOtp(verifyOtpDto, mfaToken);
+        res.cookie('refreshToken', result.refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            maxAge: refreshExpirationMs,
+            maxAge: result.refreshExpirationMs,
             path: '/api/auth',
         });
         return {
             success: true,
             data: {
-                accessToken,
-                user,
+                accessToken: result.accessToken,
+                user: result.user,
             },
         };
+    }
+    async setupMfa(req) {
+        const userId = req.user?.sub || req.user?.id;
+        return this.authService.setupMfa(userId);
+    }
+    async enableMfa(req, otpCode) {
+        const userId = req.user?.sub || req.user?.id;
+        return this.authService.enableMfa(userId, otpCode);
     }
     async refresh(req, res) {
         const refreshToken = req.cookies['refreshToken'];
@@ -68,9 +111,6 @@ let AuthController = class AuthController {
         res.clearCookie('refreshToken', { path: '/api/auth' });
         return { success: true };
     }
-    verifyOtp(verifyOtpDto) {
-        return this.authService.verifyOtp(verifyOtpDto);
-    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -82,6 +122,35 @@ __decorate([
     __metadata("design:paramtypes", [login_dto_1.LoginDto, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "login", null);
+__decorate([
+    (0, common_1.Post)('verify-otp'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [verify_otp_dto_1.VerifyOtpDto, Object, Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "verifyOtp", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('mfa/setup'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "setupMfa", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('mfa/enable'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)('otpCode')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "enableMfa", null);
 __decorate([
     (0, common_1.Post)('refresh'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
@@ -100,14 +169,6 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "logout", null);
-__decorate([
-    (0, common_1.Post)('verify-otp'),
-    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [verify_otp_dto_1.VerifyOtpDto]),
-    __metadata("design:returntype", void 0)
-], AuthController.prototype, "verifyOtp", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     (0, common_1.UseGuards)(throttler_1.ThrottlerGuard),

@@ -43,6 +43,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  React.useEffect(() => {
+    apiClient.setOnUnauthorized(() => {
+      setUser(null);
+      setAccessTokenState(null);
+    });
+
+    return () => {
+      apiClient.setOnUnauthorized(null);
+    };
+  }, [setUser]);
+
   const login = React.useCallback(
     async (credentials: LoginCredentials) => {
       setIsLoading(true);

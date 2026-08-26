@@ -62,7 +62,7 @@ __decorate([
 ], CollegesController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    (0, require_permission_decorator_1.RequirePermission)('colleges:read'),
+    (0, require_permission_decorator_1.RequirePermission)('colleges:list'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)

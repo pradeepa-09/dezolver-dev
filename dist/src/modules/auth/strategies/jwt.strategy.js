@@ -35,6 +35,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         return {
             id: payload.sub,
             role: payload.role,
+            collegeId: payload.collegeId,
             isImpersonation: payload.isImpersonation,
             impersonatorId: payload.impersonatorId,
             targetCollegeId: payload.targetCollegeId,

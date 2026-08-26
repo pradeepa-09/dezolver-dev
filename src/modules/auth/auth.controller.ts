@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import type { Response, Request } from 'express';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -26,24 +27,90 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { accessToken, refreshToken, user, refreshExpirationMs } =
-      await this.authService.login(loginDto);
+    const result = await this.authService.login(loginDto);
 
-    res.cookie('refreshToken', refreshToken, {
+    if ('mfaRequired' in result && result.mfaRequired) {
+      return {
+        success: true,
+        data: {
+          mfaRequired: true,
+          mfaToken: result.mfaToken,
+          user: result.user,
+        },
+      };
+    }
+
+    if ('refreshToken' in result) {
+      // Set standard refresh cookie if MFA not required
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: result.refreshExpirationMs,
+        path: '/api/auth',
+      });
+
+      return {
+        success: true,
+        data: {
+          accessToken: result.accessToken,
+          user: result.user,
+        },
+      };
+    }
+  }
+
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  async verifyOtp(
+    @Body() verifyOtpDto: VerifyOtpDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedException('MFA token is missing');
+    }
+    const mfaToken = authHeader.split(' ')[1];
+
+    const result = await this.authService.verifyOtp(verifyOtpDto, mfaToken);
+
+    res.cookie('refreshToken', result.refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: refreshExpirationMs,
+      maxAge: result.refreshExpirationMs,
       path: '/api/auth',
     });
 
     return {
       success: true,
       data: {
-        accessToken,
-        user,
+        accessToken: result.accessToken,
+        user: result.user,
       },
     };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('mfa/setup')
+  @HttpCode(HttpStatus.OK)
+  async setupMfa(
+    @Req() req: Request & { user?: { sub?: string; id?: string } },
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.authService.setupMfa(userId as string);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('mfa/enable')
+  @HttpCode(HttpStatus.OK)
+  async enableMfa(
+    @Req() req: Request & { user?: { sub?: string; id?: string } },
+    @Body('otpCode') otpCode: string,
+  ) {
+    const userId = req.user?.sub || req.user?.id;
+    return this.authService.enableMfa(userId as string, otpCode);
   }
 
   @Post('refresh')
@@ -91,11 +158,5 @@ export class AuthController {
     res.clearCookie('refreshToken', { path: '/api/auth' });
 
     return { success: true };
-  }
-
-  @Post('verify-otp')
-  @HttpCode(HttpStatus.OK)
-  verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    return this.authService.verifyOtp(verifyOtpDto);
   }
 }

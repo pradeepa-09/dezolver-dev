@@ -22,6 +22,8 @@ export declare class CollegesController {
             email: string;
             role: import("@prisma/client").$Enums.Role;
             isActive: boolean;
+            mfaEnabled: boolean;
+            mfaSecret: string | null;
             createdAt: Date;
             updatedAt: Date;
             collegeId: string | null;

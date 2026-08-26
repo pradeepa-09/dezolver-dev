@@ -1,8 +1,9 @@
 import {
   Injectable,
   UnauthorizedException,
-  InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
+import { User } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -11,6 +12,8 @@ import { LoginDto } from './dto/login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { authenticator } from 'otplib';
+import * as qrcode from 'qrcode';
 
 @Injectable()
 export class AuthService {
@@ -39,14 +42,125 @@ export class AuthService {
       throw new UnauthorizedException('Account is inactive');
     }
 
-    const payload = { sub: user.id, role: user.role };
+    if (user.mfaEnabled) {
+      // Issue a temporary token for MFA verification
+      const mfaTokenPayload = {
+        sub: user.id,
+        role: user.role,
+        collegeId: user.collegeId,
+        isMfaTemp: true,
+      };
+      const mfaToken = this.jwtService.sign(mfaTokenPayload, {
+        expiresIn: '5m',
+      });
+
+      return {
+        mfaRequired: true,
+        mfaToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+      };
+    }
+
+    return this.generateTokensAndSession(user);
+  }
+
+  async setupMfa(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const secret = authenticator.generateSecret();
+    const otpauthUrl = authenticator.keyuri(user.email, 'Dezolver', secret);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: secret },
+    });
+
+    const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
+
+    return {
+      secret,
+      qrCode: qrCodeDataUrl,
+    };
+  }
+
+  async enableMfa(userId: string, otpCode: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.mfaSecret) {
+      throw new BadRequestException('MFA setup not initiated');
+    }
+
+    const isValid = authenticator.verify({
+      token: otpCode,
+      secret: user.mfaSecret,
+    });
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid OTP code');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: true },
+    });
+
+    return { success: true };
+  }
+
+  async verifyOtp(verifyOtpDto: VerifyOtpDto, mfaToken: string) {
+    let payload: { isMfaTemp?: boolean; sub?: string };
+    try {
+      payload = this.jwtService.verify(mfaToken);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired MFA token');
+    }
+
+    if (!payload.isMfaTemp || payload.sub !== verifyOtpDto.userId) {
+      throw new UnauthorizedException('Invalid MFA token');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: verifyOtpDto.userId },
+      include: { college: true },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    if (!user.mfaEnabled || !user.mfaSecret) {
+      throw new BadRequestException('MFA is not enabled for this user');
+    }
+
+    const isValid = authenticator.verify({
+      token: verifyOtpDto.otpCode,
+      secret: user.mfaSecret,
+    });
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid OTP code');
+    }
+
+    return this.generateTokensAndSession(user);
+  }
+
+  private async generateTokensAndSession(user: User) {
+    const payload = {
+      sub: user.id,
+      role: user.role,
+      collegeId: user.collegeId,
+    };
     const accessToken = this.jwtService.sign(payload);
 
-    // Generate refresh token
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
 
-    // Default to 7 days if not specified
     const refreshExpirationStr = this.configService.get<string>(
       'JWT_REFRESH_EXPIRATION',
       '7d',
@@ -54,7 +168,6 @@ export class AuthService {
     const refreshExpirationMs = this.parseExpirationToMs(refreshExpirationStr);
     const expiresAt = new Date(Date.now() + refreshExpirationMs);
 
-    // Store refresh session
     await this.prisma.refreshSession.create({
       data: {
         userId: user.id,
@@ -106,33 +219,7 @@ export class AuthService {
       data: { isRevoked: true },
     });
 
-    // Generate new tokens
-    const payload = { sub: user.id, role: user.role };
-    const accessToken = this.jwtService.sign(payload);
-
-    const newRefreshToken = crypto.randomUUID();
-    const newTokenHash = this.hashToken(newRefreshToken);
-
-    const refreshExpirationStr = this.configService.get<string>(
-      'JWT_REFRESH_EXPIRATION',
-      '7d',
-    );
-    const refreshExpirationMs = this.parseExpirationToMs(refreshExpirationStr);
-    const expiresAt = new Date(Date.now() + refreshExpirationMs);
-
-    await this.prisma.refreshSession.create({
-      data: {
-        userId: user.id,
-        tokenHash: newTokenHash,
-        expiresAt,
-      },
-    });
-
-    return {
-      accessToken,
-      refreshToken: newRefreshToken,
-      refreshExpirationMs,
-    };
+    return this.generateTokensAndSession(user);
   }
 
   async logout(refreshToken: string) {
@@ -148,21 +235,13 @@ export class AuthService {
     }
   }
 
-  verifyOtp(verifyOtpDto: VerifyOtpDto) {
-    // Stub implementation for Phase 4
-    if (!verifyOtpDto) return;
-    throw new InternalServerErrorException(
-      'OTP verification is not fully implemented yet.',
-    );
-  }
-
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   private parseExpirationToMs(expiration: string): number {
     const match = expiration.match(/^(\d+)(d|h|m|s)$/);
-    if (!match) return 7 * 24 * 60 * 60 * 1000; // Default 7d
+    if (!match) return 7 * 24 * 60 * 60 * 1000;
     const value = parseInt(match[1], 10);
     const unit = match[2];
     switch (unit) {

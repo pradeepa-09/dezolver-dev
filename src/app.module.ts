@@ -10,11 +10,16 @@ import { CollegesModule } from './modules/colleges/colleges.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { ClsModule } from 'nestjs-cls';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
     }),
     ThrottlerModule.forRoot([
       {

@@ -50,6 +50,8 @@ const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const bcrypt = __importStar(require("bcrypt"));
 const crypto = __importStar(require("crypto"));
+const otplib_1 = require("otplib");
+const qrcode = __importStar(require("qrcode"));
 let AuthService = class AuthService {
     usersService;
     prisma;
@@ -73,7 +75,99 @@ let AuthService = class AuthService {
         if (!user.isActive) {
             throw new common_1.UnauthorizedException('Account is inactive');
         }
-        const payload = { sub: user.id, role: user.role };
+        if (user.mfaEnabled) {
+            const mfaTokenPayload = {
+                sub: user.id,
+                role: user.role,
+                collegeId: user.collegeId,
+                isMfaTemp: true,
+            };
+            const mfaToken = this.jwtService.sign(mfaTokenPayload, {
+                expiresIn: '5m',
+            });
+            return {
+                mfaRequired: true,
+                mfaToken,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    role: user.role,
+                },
+            };
+        }
+        return this.generateTokensAndSession(user);
+    }
+    async setupMfa(userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new common_1.UnauthorizedException('User not found');
+        }
+        const secret = otplib_1.authenticator.generateSecret();
+        const otpauthUrl = otplib_1.authenticator.keyuri(user.email, 'Dezolver', secret);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { mfaSecret: secret },
+        });
+        const qrCodeDataUrl = await qrcode.toDataURL(otpauthUrl);
+        return {
+            secret,
+            qrCode: qrCodeDataUrl,
+        };
+    }
+    async enableMfa(userId, otpCode) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user || !user.mfaSecret) {
+            throw new common_1.BadRequestException('MFA setup not initiated');
+        }
+        const isValid = otplib_1.authenticator.verify({
+            token: otpCode,
+            secret: user.mfaSecret,
+        });
+        if (!isValid) {
+            throw new common_1.UnauthorizedException('Invalid OTP code');
+        }
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { mfaEnabled: true },
+        });
+        return { success: true };
+    }
+    async verifyOtp(verifyOtpDto, mfaToken) {
+        let payload;
+        try {
+            payload = this.jwtService.verify(mfaToken);
+        }
+        catch {
+            throw new common_1.UnauthorizedException('Invalid or expired MFA token');
+        }
+        if (!payload.isMfaTemp || payload.sub !== verifyOtpDto.userId) {
+            throw new common_1.UnauthorizedException('Invalid MFA token');
+        }
+        const user = await this.prisma.user.findUnique({
+            where: { id: verifyOtpDto.userId },
+            include: { college: true },
+        });
+        if (!user || !user.isActive) {
+            throw new common_1.UnauthorizedException('User not found or inactive');
+        }
+        if (!user.mfaEnabled || !user.mfaSecret) {
+            throw new common_1.BadRequestException('MFA is not enabled for this user');
+        }
+        const isValid = otplib_1.authenticator.verify({
+            token: verifyOtpDto.otpCode,
+            secret: user.mfaSecret,
+        });
+        if (!isValid) {
+            throw new common_1.UnauthorizedException('Invalid OTP code');
+        }
+        return this.generateTokensAndSession(user);
+    }
+    async generateTokensAndSession(user) {
+        const payload = {
+            sub: user.id,
+            role: user.role,
+            collegeId: user.collegeId,
+        };
         const accessToken = this.jwtService.sign(payload);
         const refreshToken = crypto.randomUUID();
         const tokenHash = this.hashToken(refreshToken);
@@ -122,25 +216,7 @@ let AuthService = class AuthService {
             where: { id: session.id },
             data: { isRevoked: true },
         });
-        const payload = { sub: user.id, role: user.role };
-        const accessToken = this.jwtService.sign(payload);
-        const newRefreshToken = crypto.randomUUID();
-        const newTokenHash = this.hashToken(newRefreshToken);
-        const refreshExpirationStr = this.configService.get('JWT_REFRESH_EXPIRATION', '7d');
-        const refreshExpirationMs = this.parseExpirationToMs(refreshExpirationStr);
-        const expiresAt = new Date(Date.now() + refreshExpirationMs);
-        await this.prisma.refreshSession.create({
-            data: {
-                userId: user.id,
-                tokenHash: newTokenHash,
-                expiresAt,
-            },
-        });
-        return {
-            accessToken,
-            refreshToken: newRefreshToken,
-            refreshExpirationMs,
-        };
+        return this.generateTokensAndSession(user);
     }
     async logout(refreshToken) {
         if (!refreshToken)
@@ -154,11 +230,6 @@ let AuthService = class AuthService {
         }
         catch {
         }
-    }
-    verifyOtp(verifyOtpDto) {
-        if (!verifyOtpDto)
-            return;
-        throw new common_1.InternalServerErrorException('OTP verification is not fully implemented yet.');
     }
     hashToken(token) {
         return crypto.createHash('sha256').update(token).digest('hex');

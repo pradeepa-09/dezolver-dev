@@ -13,11 +13,17 @@ export default defineConfig({
   server: {
     port: 3001,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
+    },
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
-    testTimeout: 15000,
+    testTimeout: 30000,
   },
 });

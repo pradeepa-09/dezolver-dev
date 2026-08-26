@@ -9,12 +9,14 @@ export declare class JwtStrategy extends JwtStrategy_base {
     validate(payload: {
         sub: string;
         role: string;
+        collegeId?: string;
         isImpersonation?: boolean;
         impersonatorId?: string;
         targetCollegeId?: string;
     }): {
         id: string;
         role: string;
+        collegeId: string | undefined;
         isImpersonation: boolean | undefined;
         impersonatorId: string | undefined;
         targetCollegeId: string | undefined;

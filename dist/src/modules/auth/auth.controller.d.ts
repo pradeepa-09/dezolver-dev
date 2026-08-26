@@ -8,6 +8,31 @@ export declare class AuthController {
     login(loginDto: LoginDto, res: Response): Promise<{
         success: boolean;
         data: {
+            mfaRequired: boolean;
+            mfaToken: string;
+            user: {
+                id: string;
+                email: string;
+                role: import("@prisma/client").$Enums.Role;
+            };
+            accessToken?: undefined;
+        };
+    } | {
+        success: boolean;
+        data: {
+            accessToken: string;
+            user: {
+                id: string;
+                email: string;
+                role: import("@prisma/client").$Enums.Role;
+            };
+            mfaRequired?: undefined;
+            mfaToken?: undefined;
+        };
+    } | undefined>;
+    verifyOtp(verifyOtpDto: VerifyOtpDto, req: Request, res: Response): Promise<{
+        success: boolean;
+        data: {
             accessToken: string;
             user: {
                 id: string;
@@ -15,6 +40,23 @@ export declare class AuthController {
                 role: import("@prisma/client").$Enums.Role;
             };
         };
+    }>;
+    setupMfa(req: Request & {
+        user?: {
+            sub?: string;
+            id?: string;
+        };
+    }): Promise<{
+        secret: string;
+        qrCode: string;
+    }>;
+    enableMfa(req: Request & {
+        user?: {
+            sub?: string;
+            id?: string;
+        };
+    }, otpCode: string): Promise<{
+        success: boolean;
     }>;
     refresh(req: Request, res: Response): Promise<{
         success: boolean;
@@ -25,5 +67,4 @@ export declare class AuthController {
     logout(req: Request, res: Response): Promise<{
         success: boolean;
     }>;
-    verifyOtp(verifyOtpDto: VerifyOtpDto): void;
 }

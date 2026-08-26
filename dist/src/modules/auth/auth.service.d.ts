@@ -19,14 +19,44 @@ export declare class AuthService {
             role: import("@prisma/client").$Enums.Role;
         };
         refreshExpirationMs: number;
+    } | {
+        mfaRequired: boolean;
+        mfaToken: string;
+        user: {
+            id: string;
+            email: string;
+            role: import("@prisma/client").$Enums.Role;
+        };
     }>;
+    setupMfa(userId: string): Promise<{
+        secret: string;
+        qrCode: string;
+    }>;
+    enableMfa(userId: string, otpCode: string): Promise<{
+        success: boolean;
+    }>;
+    verifyOtp(verifyOtpDto: VerifyOtpDto, mfaToken: string): Promise<{
+        accessToken: string;
+        refreshToken: `${string}-${string}-${string}-${string}-${string}`;
+        user: {
+            id: string;
+            email: string;
+            role: import("@prisma/client").$Enums.Role;
+        };
+        refreshExpirationMs: number;
+    }>;
+    private generateTokensAndSession;
     refresh(oldRefreshToken: string): Promise<{
         accessToken: string;
         refreshToken: `${string}-${string}-${string}-${string}-${string}`;
+        user: {
+            id: string;
+            email: string;
+            role: import("@prisma/client").$Enums.Role;
+        };
         refreshExpirationMs: number;
     }>;
     logout(refreshToken: string): Promise<void>;
-    verifyOtp(verifyOtpDto: VerifyOtpDto): void;
     private hashToken;
     private parseExpirationToMs;
 }

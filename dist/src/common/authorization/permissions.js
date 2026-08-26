@@ -5,6 +5,7 @@ const client_1 = require("@prisma/client");
 exports.RolePermissions = {
     [client_1.Role.SUPER_ADMIN]: [
         'system:test',
+        'colleges:list',
         'colleges:read',
         'colleges:create',
         'colleges:update',
@@ -19,7 +20,7 @@ exports.RolePermissions = {
         'subscriptions:create',
         'subscriptions:update',
     ],
-    [client_1.Role.ADMIN]: [],
+    [client_1.Role.ADMIN]: ['colleges:read'],
     [client_1.Role.USER]: [],
 };
 //# sourceMappingURL=permissions.js.map

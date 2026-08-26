@@ -19,6 +19,7 @@ const colleges_module_1 = require("./modules/colleges/colleges.module");
 const plans_module_1 = require("./modules/plans/plans.module");
 const analytics_module_1 = require("./modules/analytics/analytics.module");
 const subscriptions_module_1 = require("./modules/subscriptions/subscriptions.module");
+const nestjs_cls_1 = require("nestjs-cls");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -27,6 +28,10 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
+            }),
+            nestjs_cls_1.ClsModule.forRoot({
+                global: true,
+                middleware: { mount: true },
             }),
             throttler_1.ThrottlerModule.forRoot([
                 {
