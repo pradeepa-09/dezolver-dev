@@ -5,4 +5,10 @@ export declare class AppController {
     getHello(): {
         message: string;
     };
+    getHealth(): {
+        status: string;
+        timestamp: string;
+        service: string;
+        uptime: number;
+    };
 }
