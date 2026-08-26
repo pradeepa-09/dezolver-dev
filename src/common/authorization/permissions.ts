@@ -11,7 +11,10 @@ export type Permission =
   | 'plans:create'
   | 'plans:update'
   | 'plans:manage_status'
-  | 'analytics:read';
+  | 'analytics:read'
+  | 'subscriptions:read'
+  | 'subscriptions:create'
+  | 'subscriptions:update';
 
 export const RolePermissions: Record<Role, Permission[]> = {
   [Role.SUPER_ADMIN]: [
@@ -26,6 +29,9 @@ export const RolePermissions: Record<Role, Permission[]> = {
     'plans:update',
     'plans:manage_status',
     'analytics:read',
+    'subscriptions:read',
+    'subscriptions:create',
+    'subscriptions:update',
   ],
   [Role.ADMIN]: [],
   [Role.USER]: [],

@@ -49,7 +49,6 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const jwt_1 = require("@nestjs/jwt");
 const config_1 = require("@nestjs/config");
 const bcrypt = __importStar(require("bcrypt"));
-const uuid_1 = require("uuid");
 const crypto = __importStar(require("crypto"));
 let AuthService = class AuthService {
     usersService;
@@ -76,7 +75,7 @@ let AuthService = class AuthService {
         }
         const payload = { sub: user.id, role: user.role };
         const accessToken = this.jwtService.sign(payload);
-        const refreshToken = (0, uuid_1.v4)();
+        const refreshToken = crypto.randomUUID();
         const tokenHash = this.hashToken(refreshToken);
         const refreshExpirationStr = this.configService.get('JWT_REFRESH_EXPIRATION', '7d');
         const refreshExpirationMs = this.parseExpirationToMs(refreshExpirationStr);
@@ -125,7 +124,7 @@ let AuthService = class AuthService {
         });
         const payload = { sub: user.id, role: user.role };
         const accessToken = this.jwtService.sign(payload);
-        const newRefreshToken = (0, uuid_1.v4)();
+        const newRefreshToken = crypto.randomUUID();
         const newTokenHash = this.hashToken(newRefreshToken);
         const refreshExpirationStr = this.configService.get('JWT_REFRESH_EXPIRATION', '7d');
         const refreshExpirationMs = this.parseExpirationToMs(refreshExpirationStr);

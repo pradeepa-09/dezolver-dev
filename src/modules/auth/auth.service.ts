@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 import { LoginDto } from './dto/login.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import * as bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -44,7 +43,7 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     // Generate refresh token
-    const refreshToken = uuidv4();
+    const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
 
     // Default to 7 days if not specified
@@ -111,7 +110,7 @@ export class AuthService {
     const payload = { sub: user.id, role: user.role };
     const accessToken = this.jwtService.sign(payload);
 
-    const newRefreshToken = uuidv4();
+    const newRefreshToken = crypto.randomUUID();
     const newTokenHash = this.hashToken(newRefreshToken);
 
     const refreshExpirationStr = this.configService.get<string>(

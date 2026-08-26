@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const throttler_1 = require("@nestjs/throttler");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const prisma_module_1 = require("./modules/prisma/prisma.module");
@@ -17,6 +18,7 @@ const auth_module_1 = require("./modules/auth/auth.module");
 const colleges_module_1 = require("./modules/colleges/colleges.module");
 const plans_module_1 = require("./modules/plans/plans.module");
 const analytics_module_1 = require("./modules/analytics/analytics.module");
+const subscriptions_module_1 = require("./modules/subscriptions/subscriptions.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -26,11 +28,18 @@ exports.AppModule = AppModule = __decorate([
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
             }),
+            throttler_1.ThrottlerModule.forRoot([
+                {
+                    ttl: 60000,
+                    limit: 10,
+                },
+            ]),
             prisma_module_1.PrismaModule,
             users_module_1.UsersModule,
             auth_module_1.AuthModule,
             colleges_module_1.CollegesModule,
             plans_module_1.PlansModule,
+            subscriptions_module_1.SubscriptionsModule,
             analytics_module_1.AnalyticsModule,
         ],
         controllers: [app_controller_1.AppController],

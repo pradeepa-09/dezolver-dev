@@ -12,7 +12,7 @@ export declare class AuthService {
     constructor(usersService: UsersService, prisma: PrismaService, jwtService: JwtService, configService: ConfigService);
     login(loginDto: LoginDto): Promise<{
         accessToken: string;
-        refreshToken: string;
+        refreshToken: `${string}-${string}-${string}-${string}-${string}`;
         user: {
             id: string;
             email: string;
@@ -22,7 +22,7 @@ export declare class AuthService {
     }>;
     refresh(oldRefreshToken: string): Promise<{
         accessToken: string;
-        refreshToken: string;
+        refreshToken: `${string}-${string}-${string}-${string}-${string}`;
         refreshExpirationMs: number;
     }>;
     logout(refreshToken: string): Promise<void>;
