@@ -1,12 +1,19 @@
 import * as React from 'react';
 import { apiClient } from '@/lib/api/apiClient';
 import { authApi } from '@/features/auth/api/authApi';
-import type { User, LoginCredentials, AuthState } from '@/types/auth';
+import type {
+  User,
+  LoginCredentials,
+  AuthState,
+  LoginResponseData,
+  VerifyOtpPayload,
+} from '@/types/auth';
 
 const SESSION_USER_KEY = 'dezolver_auth_user';
 
 export interface AuthContextValue extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<{ requiresMfa?: boolean; user: User }>;
+  login: (credentials: LoginCredentials) => Promise<LoginResponseData>;
+  verifyMfa: (payload: VerifyOtpPayload) => Promise<LoginResponseData>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
 }
@@ -55,10 +62,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [setUser]);
 
   const login = React.useCallback(
-    async (credentials: LoginCredentials) => {
+    async (credentials: LoginCredentials): Promise<LoginResponseData> => {
       setIsLoading(true);
       try {
         const responseData = await authApi.login(credentials);
+
+        if (!responseData.mfaRequired && !responseData.requiresMfa) {
+          if (responseData.accessToken) {
+            setAccessTokenState(responseData.accessToken);
+            apiClient.setAccessToken(responseData.accessToken);
+          }
+
+          if (responseData.user) {
+            setUser(responseData.user);
+          }
+        }
+
+        return responseData;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [setUser],
+  );
+
+  const verifyMfa = React.useCallback(
+    async (payload: VerifyOtpPayload): Promise<LoginResponseData> => {
+      setIsLoading(true);
+      try {
+        const responseData = await authApi.verifyOtp(payload);
 
         if (responseData.accessToken) {
           setAccessTokenState(responseData.accessToken);
@@ -69,10 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(responseData.user);
         }
 
-        return {
-          requiresMfa: responseData.requiresMfa,
-          user: responseData.user,
-        };
+        return responseData;
       } finally {
         setIsLoading(false);
       }
@@ -100,10 +129,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isAuthenticated: !!user,
       isLoading,
       login,
+      verifyMfa,
       logout,
       setUser,
     };
-  }, [user, accessToken, isLoading, login, logout, setUser]);
+  }, [user, accessToken, isLoading, login, verifyMfa, logout, setUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

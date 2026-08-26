@@ -17,6 +17,7 @@ describe('LoginForm', () => {
       isAuthenticated: false,
       isLoading: false,
       login: mockLogin,
+      verifyMfa: vi.fn(),
       logout: vi.fn(),
       setUser: vi.fn(),
     });
@@ -87,6 +88,32 @@ describe('LoginForm', () => {
       expect(mockLogin).toHaveBeenCalledWith({
         email: 'admin@dezolver.com',
         password: 'secretPassword123',
+      });
+    });
+  });
+
+  it('navigates to /mfa with preserved state when mfaRequired is true', async () => {
+    const user = userEvent.setup();
+    mockLogin.mockResolvedValue({
+      mfaRequired: true,
+      mfaToken: 'temp-mfa-token-123',
+      user: { id: 'user-mfa-id', email: 'admin@dezolver.com', role: 'SUPER_ADMIN' },
+    });
+
+    render(
+      <MemoryRouter>
+        <LoginForm />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText(/Email Address/i), 'admin@dezolver.com');
+    await user.type(screen.getByLabelText(/^Password$/i, { selector: 'input' }), 'validPassword123');
+    await user.click(screen.getByRole('button', { name: /Sign in to Console/i }));
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        email: 'admin@dezolver.com',
+        password: 'validPassword123',
       });
     });
   });

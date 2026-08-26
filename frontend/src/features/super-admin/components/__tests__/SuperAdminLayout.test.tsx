@@ -23,6 +23,7 @@ describe('SuperAdminLayout', () => {
       isAuthenticated: true,
       isLoading: false,
       login: vi.fn(),
+      verifyMfa: vi.fn(),
       logout: mockLogout,
       setUser: vi.fn(),
     });

@@ -2,12 +2,14 @@ import { apiClient } from '@/lib/api/apiClient';
 import type {
   LoginCredentials,
   LoginResponseData,
+  VerifyOtpPayload,
+  MfaSetupResponse,
 } from '@/types/auth';
 import type { ApiResponse, HealthCheckResponse } from '@/types/api';
 
 /**
  * Isolated authentication API service
- * Keeps backend endpoint contracts modular and easy to adapt without touching UI components.
+ * Keeps backend endpoint contracts modular and aligned with backend auth routes.
  */
 export const authApi = {
   /**
@@ -22,10 +24,20 @@ export const authApi = {
 
     // Handle both wrapped ApiResponse envelope and direct payload shapes
     if ('data' in response && response.data && typeof response.data === 'object') {
-      return response.data as LoginResponseData;
+      const data = response.data as LoginResponseData;
+      return {
+        ...data,
+        mfaRequired: data.mfaRequired ?? data.requiresMfa,
+        requiresMfa: data.mfaRequired ?? data.requiresMfa,
+      };
     }
 
-    return response as LoginResponseData;
+    const data = response as LoginResponseData;
+    return {
+      ...data,
+      mfaRequired: data.mfaRequired ?? data.requiresMfa,
+      requiresMfa: data.mfaRequired ?? data.requiresMfa,
+    };
   },
 
   /**
@@ -40,14 +52,22 @@ export const authApi = {
   },
 
   /**
-   * Placeholder for future MFA / OTP verification
-   * (e.g. POST /auth/verify-otp)
+   * Submit MFA OTP code to POST /auth/verify-otp
+   * Requires Bearer header with temporary mfaToken and body with { userId, otpCode }
    */
-  async verifyOtp(payload: { otp: string; mfaToken?: string }): Promise<LoginResponseData> {
+  async verifyOtp(payload: VerifyOtpPayload): Promise<LoginResponseData> {
     const response = await apiClient.post<ApiResponse<LoginResponseData> | LoginResponseData>(
       '/auth/verify-otp',
-      payload,
-      { skipAuth: true },
+      {
+        userId: payload.userId,
+        otpCode: payload.otpCode,
+      },
+      {
+        skipAuth: true,
+        headers: {
+          Authorization: `Bearer ${payload.mfaToken}`,
+        },
+      },
     );
 
     if ('data' in response && response.data && typeof response.data === 'object') {
@@ -55,6 +75,47 @@ export const authApi = {
     }
 
     return response as LoginResponseData;
+  },
+
+  /**
+   * Alias for verifyOtp
+   */
+  async verifyMfa(payload: VerifyOtpPayload): Promise<LoginResponseData> {
+    return this.verifyOtp(payload);
+  },
+
+  /**
+   * Initiate MFA setup for authenticated user: POST /auth/mfa/setup
+   */
+  async setupMfa(): Promise<MfaSetupResponse> {
+    const response = await apiClient.post<ApiResponse<MfaSetupResponse> | MfaSetupResponse>(
+      '/auth/mfa/setup',
+      {},
+      { skipAuth: false },
+    );
+
+    if ('data' in response && response.data && typeof response.data === 'object') {
+      return response.data as MfaSetupResponse;
+    }
+
+    return response as MfaSetupResponse;
+  },
+
+  /**
+   * Confirm and enable MFA for authenticated user: POST /auth/mfa/enable
+   */
+  async enableMfa(otpCode: string): Promise<{ success: boolean }> {
+    const response = await apiClient.post<ApiResponse<{ success: boolean }> | { success: boolean }>(
+      '/auth/mfa/enable',
+      { otpCode },
+      { skipAuth: false },
+    );
+
+    if ('data' in response && response.data && typeof response.data === 'object') {
+      return response.data as { success: boolean };
+    }
+
+    return response as { success: boolean };
   },
 
   /**

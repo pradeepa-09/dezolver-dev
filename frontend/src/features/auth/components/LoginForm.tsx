@@ -58,13 +58,21 @@ export const LoginForm: React.FC = () => {
         password,
       });
 
-      if (result.requiresMfa) {
-        navigate(ROUTES.MFA, { replace: true });
+      const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || ROUTES.SUPER_ADMIN_DASHBOARD;
+
+      if (result.mfaRequired || result.requiresMfa) {
+        navigate(ROUTES.MFA, {
+          replace: true,
+          state: {
+            mfaToken: result.mfaToken,
+            user: result.user,
+            from,
+          },
+        });
         return;
       }
 
       // If user has role other than SUPER_ADMIN and attempts to access super admin, ProtectedRoute will handle role gating
-      const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || ROUTES.SUPER_ADMIN_DASHBOARD;
       navigate(from, { replace: true });
     } catch (err) {
       if (err instanceof UnauthorizedError) {
