@@ -5,11 +5,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { SuperAdminLayout } from '../SuperAdminLayout';
 import { ImpersonationProvider } from '@/features/super-admin/colleges/context/ImpersonationContext';
 import * as useAuthModule from '@/features/auth/context/useAuth';
-import * as useHealthCheckModule from '@/hooks/useHealthCheck';
 import type { User } from '@/types/auth';
 
 describe('SuperAdminLayout', () => {
-  it('renders branding, user badge, and triggers logout modal', async () => {
+  it('renders branding, user badge, navigation, and triggers logout modal', async () => {
     const mockLogout = vi.fn();
     const superAdmin: User = {
       id: 'usr-admin',
@@ -28,16 +27,6 @@ describe('SuperAdminLayout', () => {
       setUser: vi.fn(),
     });
 
-    vi.spyOn(useHealthCheckModule, 'useHealthCheck').mockReturnValue({
-      data: { status: 'ok' },
-      isLoading: false,
-      isFetching: false,
-      isError: false,
-      error: null,
-      isSuccess: true,
-      refetch: vi.fn() as any,
-    });
-
     const user = userEvent.setup();
 
     render(
@@ -48,11 +37,16 @@ describe('SuperAdminLayout', () => {
       </ImpersonationProvider>,
     );
 
+    // Sidebar Branding & Section Headers
     expect(screen.getByText('Dezolver')).toBeInTheDocument();
-    expect(screen.getByText('superadmin@dezolver.com')).toBeInTheDocument();
-    expect(screen.getByText('Online')).toBeInTheDocument();
+    expect(screen.getByText('EDTECH PLATFORM')).toBeInTheDocument();
+    expect(screen.getByText('OVERVIEW')).toBeInTheDocument();
+    expect(screen.getByText('MANAGEMENT')).toBeInTheDocument();
 
-    // Click logout button
+    // Top Header
+    expect(screen.getByPlaceholderText('Search anything...')).toBeInTheDocument();
+
+    // Click logout button in sidebar
     await user.click(screen.getByRole('button', { name: /Logout/i }));
 
     // Confirmation dialog should appear

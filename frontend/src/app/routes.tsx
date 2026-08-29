@@ -7,6 +7,7 @@ import { SuperAdminDashboardPage } from '@/features/super-admin/pages/SuperAdmin
 import { CollegeManagementPage } from '@/features/super-admin/colleges/pages/CollegeManagementPage';
 import { PlanConfigurationPage } from '@/features/super-admin/plans/pages/PlanConfigurationPage';
 import { PlatformAnalyticsPage } from '@/features/super-admin/analytics/pages/PlatformAnalyticsPage';
+import { ProfileSettingsPage } from '@/features/super-admin/profile/pages/ProfileSettingsPage';
 import { ForbiddenPage } from '@/features/errors/pages/ForbiddenPage';
 import { NotFoundPage } from '@/features/errors/pages/NotFoundPage';
 import { ProtectedRoute } from '@/components/routing/ProtectedRoute';
@@ -16,6 +17,10 @@ export const router = createBrowserRouter([
   {
     path: ROUTES.HOME,
     element: <Navigate to={ROUTES.SUPER_ADMIN_DASHBOARD} replace />,
+  },
+  {
+    path: ROUTES.PROFILE,
+    element: <Navigate to={ROUTES.SUPER_ADMIN_PROFILE} replace />,
   },
 
   // Authentication Routes
@@ -56,6 +61,10 @@ export const router = createBrowserRouter([
       {
         path: 'analytics',
         element: <PlatformAnalyticsPage />,
+      },
+      {
+        path: 'profile',
+        element: <ProfileSettingsPage />,
       },
     ],
   },

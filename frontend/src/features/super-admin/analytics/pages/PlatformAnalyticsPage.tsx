@@ -3,355 +3,382 @@ import { useQuery } from '@tanstack/react-query';
 import { analyticsApi } from '../api/analyticsApi';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import {
-  Building2,
-  Users,
-  CreditCard,
-  Layers,
-  Activity,
-  Calendar,
-  UserCheck,
-  ShieldCheck,
-  RefreshCw,
-} from 'lucide-react';
+import { Download } from 'lucide-react';
 import type { PlatformAnalytics } from '@/types/analytics';
 
 export const PlatformAnalyticsPage: React.FC = () => {
+  const [timeRange, setTimeRange] = React.useState<'1M' | '3M' | '6M' | '12M'>('6M');
+
   const {
     data: analytics,
     isLoading,
     isError,
     error,
     refetch,
-    isFetching,
   } = useQuery<PlatformAnalytics, Error>({
     queryKey: ['platform-analytics'],
     queryFn: () => analyticsApi.getPlatformAnalytics(),
-    staleTime: 15_000,
+    staleTime: 30_000,
   });
 
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  const timeRanges: Array<'1M' | '3M' | '6M' | '12M'> = ['1M', '3M', '6M', '12M'];
+
+  // Top Colleges by Engagement list
+  const topColleges = [
+    { rank: 1, name: 'Clearwater University', score: 90 },
+    { rank: 2, name: 'Eastbrook Engineering', score: 78 },
+    { rank: 3, name: 'Westgate Polytechnic', score: 62 },
+    { rank: 4, name: 'Sunrise Institute', score: 58 },
+    { rank: 5, name: 'Pinehurst Community', score: 32 },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
         <div>
-          <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Platform Analytics
-            </h1>
-            <Badge variant="default" className="font-mono text-xs">
-              Live Metrics
-            </Badge>
-          </div>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Real-time aggregate data across institutions, user accounts, subscription tiers, and administrative operations.
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Platform Analytics
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
+            Cross-tenant reporting &mdash; Dezprox business metrics
           </p>
         </div>
-
-        <div className="flex items-center space-x-2.5">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => refetch()}
-            isLoading={isFetching}
-            leftIcon={<RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />}
-          >
-            Refresh Data
-          </Button>
-        </div>
-      </div>
-
-      {/* States */}
-      {isLoading ? (
         <LoadingState
-          title="Loading Platform Intelligence"
-          description="Aggregating metrics across institutions and subscriptions..."
+          title="Loading Platform Analytics"
+          description="Fetching cross-tenant reporting and engagement metrics..."
         />
-      ) : isError ? (
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Platform Analytics
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
+            Cross-tenant reporting &mdash; Dezprox business metrics
+          </p>
+        </div>
         <ErrorState
           title="Failed to Load Platform Analytics"
           message={error?.message || 'A network error occurred while querying analytics data.'}
           onRetry={() => refetch()}
         />
-      ) : !analytics ? (
-        <EmptyState
-          title="No Platform Data Available"
-          description="Analytics data is not available at this moment."
-        />
-      ) : (
-        <div className="space-y-8 animate-fade-in">
-          {/* Top KPI Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Colleges KPI */}
-            <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Colleges
-                </span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-                  <Building2 className="h-4 w-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-foreground font-mono">
-                  {analytics.colleges.total}
-                </p>
-              </div>
-              <div className="flex items-center space-x-2 pt-2 border-t border-border/40 text-xs">
-                <span className="inline-flex items-center text-emerald-400 font-mono">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1" />
-                  {analytics.colleges.active} Active
-                </span>
-                <span className="text-muted-foreground/40">•</span>
-                <span className="inline-flex items-center text-rose-400 font-mono">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400 mr-1" />
-                  {analytics.colleges.suspended} Suspended
-                </span>
-              </div>
-            </div>
+      </div>
+    );
+  }
 
-            {/* Users KPI */}
-            <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Total Users
-                </span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30">
-                  <Users className="h-4 w-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-foreground font-mono">
-                  {analytics.users.total}
-                </p>
-              </div>
-              <div className="flex items-center space-x-2 pt-2 border-t border-border/40 text-[11px] text-muted-foreground font-mono">
-                <span>{analytics.users.byRole.superAdmin} Super</span>
-                <span>•</span>
-                <span>{analytics.users.byRole.admin} Admin</span>
-                <span>•</span>
-                <span>{analytics.users.byRole.user} User</span>
-              </div>
-            </div>
+  return (
+    <div className="space-y-6 pb-8 animate-fade-in">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Platform Analytics
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
+            Cross-tenant reporting &mdash; Dezprox business metrics
+          </p>
+        </div>
 
-            {/* Plans KPI */}
-            <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Configured Plans
-                </span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-600/20 text-sky-400 border border-sky-500/30">
-                  <CreditCard className="h-4 w-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-foreground font-mono">
-                  {analytics.plans.total}
-                </p>
-              </div>
-              <div className="pt-2 border-t border-border/40 text-xs text-muted-foreground">
-                Active platform tiers
-              </div>
-            </div>
-
-            {/* Subscriptions KPI */}
-            <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Subscriptions
-                </span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
-                  <Layers className="h-4 w-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-3xl font-extrabold text-foreground font-mono">
-                  {analytics.subscriptions.total}
-                </p>
-              </div>
-              <div className="flex items-center space-x-2 pt-2 border-t border-border/40 text-xs">
-                <span className="text-emerald-400 font-mono">
-                  {analytics.subscriptions.active} Active
-                </span>
-              </div>
-            </div>
+        <div className="flex items-center space-x-3">
+          {/* Time Range Filter Controls */}
+          <div className="inline-flex rounded-xl bg-slate-100/90 p-1 border border-slate-200/60 shadow-2xs">
+            {timeRanges.map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  timeRange === range
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {range}
+              </button>
+            ))}
           </div>
 
-          {/* Breakdown Summary Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* College Status Distribution */}
-            <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-4">
-              <div className="flex items-center space-x-2">
-                <Building2 className="h-4 w-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-foreground">
-                  Institution Status Distribution
-                </h3>
-              </div>
+          {/* Export Button */}
+          <button
+            onClick={() => {
+              const dataStr = JSON.stringify(analytics, null, 2);
+              const blob = new Blob([dataStr], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `platform_analytics_${Date.now()}.json`;
+              a.click();
+            }}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200/80 rounded-xl hover:bg-slate-50 shadow-2xs transition-all cursor-pointer"
+          >
+            <Download className="h-3.5 w-3.5 text-slate-500" />
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
 
-              <div className="space-y-3 pt-2">
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-foreground">Active Institutions</span>
-                    <span className="font-mono text-emerald-400">
-                      {analytics.colleges.active} (
-                      {analytics.colleges.total > 0
-                        ? Math.round((analytics.colleges.active / analytics.colleges.total) * 100)
-                        : 0}
-                      %)
-                    </span>
-                  </div>
-                  <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-emerald-500 h-2 rounded-full transition-all"
-                      style={{
-                        width: `${
-                          analytics.colleges.total > 0
-                            ? (analytics.colleges.active / analytics.colleges.total) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                </div>
+      {/* Main 2x2 Analytics Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Chart 1: Monthly Recurring Revenue (₹) */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs">
+          <h2 className="text-sm font-bold text-slate-800 mb-6">
+            Monthly Recurring Revenue (₹)
+          </h2>
 
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-foreground">Suspended Institutions</span>
-                    <span className="font-mono text-rose-400">
-                      {analytics.colleges.suspended} (
-                      {analytics.colleges.total > 0
-                        ? Math.round((analytics.colleges.suspended / analytics.colleges.total) * 100)
-                        : 0}
-                      %)
-                    </span>
-                  </div>
-                  <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-rose-500 h-2 rounded-full transition-all"
-                      style={{
-                        width: `${
-                          analytics.colleges.total > 0
-                            ? (analytics.colleges.suspended / analytics.colleges.total) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="relative h-56 w-full">
+            <svg
+              className="w-full h-full overflow-visible"
+              viewBox="0 0 500 200"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="mrrGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
 
-            {/* User Account Role Distribution */}
-            <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-4">
-              <div className="flex items-center space-x-2">
-                <ShieldCheck className="h-4 w-4 text-purple-400" />
-                <h3 className="text-sm font-bold text-foreground">
-                  User Roles & Activity
-                </h3>
-              </div>
+              {/* Dotted Gridlines */}
+              <line x1="45" y1="20" x2="490" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="45" y1="60" x2="490" y2="60" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="45" y1="100" x2="490" y2="100" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="45" y1="140" x2="490" y2="140" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="45" y1="180" x2="490" y2="180" stroke="#e2e8f0" />
 
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                <div className="rounded-xl border border-border/60 bg-secondary/30 p-3 text-center">
-                  <p className="text-lg font-bold text-indigo-400 font-mono">
-                    {analytics.users.byRole.superAdmin}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Super Admins</p>
-                </div>
-                <div className="rounded-xl border border-border/60 bg-secondary/30 p-3 text-center">
-                  <p className="text-lg font-bold text-purple-400 font-mono">
-                    {analytics.users.byRole.admin}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Admins (Finance)</p>
-                </div>
-                <div className="rounded-xl border border-border/60 bg-secondary/30 p-3 text-center">
-                  <p className="text-lg font-bold text-emerald-400 font-mono">
-                    {analytics.users.byRole.user}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Regular Users</p>
-                </div>
-              </div>
-            </div>
-          </div>
+              {/* Y-Axis Labels */}
+              <text x="5" y="24" className="text-[10px] fill-slate-400 font-mono">₹14.0L</text>
+              <text x="5" y="64" className="text-[10px] fill-slate-400 font-mono">₹10.5L</text>
+              <text x="5" y="104" className="text-[10px] fill-slate-400 font-mono">₹7.0L</text>
+              <text x="5" y="144" className="text-[10px] fill-slate-400 font-mono">₹3.5L</text>
+              <text x="5" y="184" className="text-[10px] fill-slate-400 font-mono">₹0.0L</text>
 
-          {/* Recent Administrative Activity Log */}
-          <div className="rounded-2xl border border-border/80 bg-card p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Activity className="h-4 w-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-foreground">
-                  Recent Administrative Audit Log
-                </h3>
-              </div>
-              <Badge variant="secondary" className="text-[10px] font-mono">
-                Latest {analytics.recentActivity.length} Events
-              </Badge>
-            </div>
+              {/* Area Fill */}
+              <path
+                d="M 50 110 C 100 95, 140 105, 190 115 C 240 120, 280 85, 330 80 C 380 75, 410 90, 450 85 C 470 82, 480 65, 490 60 L 490 180 L 50 180 Z"
+                fill="url(#mrrGradient)"
+              />
 
-            {analytics.recentActivity.length === 0 ? (
-              <div className="p-8 text-center text-xs text-muted-foreground rounded-xl border border-dashed border-border">
-                No administrative audit records logged yet.
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border/70 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b border-border/60 bg-secondary/40 text-muted-foreground font-semibold">
-                      <tr>
-                        <th className="p-3 pl-4">Action</th>
-                        <th className="p-3">Actor</th>
-                        <th className="p-3">Target</th>
-                        <th className="p-3 pr-4">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {analytics.recentActivity.map((activity) => (
-                        <tr key={activity.id} className="hover:bg-secondary/20 transition-colors">
-                          <td className="p-3 pl-4">
-                            <Badge variant="default" className="font-mono text-[10px]">
-                              {activity.action}
-                            </Badge>
-                          </td>
-                          <td className="p-3">
-                            {activity.actor ? (
-                              <div className="flex items-center space-x-1.5">
-                                <UserCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="font-mono text-foreground font-medium">
-                                  {activity.actor.email}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground italic">System</span>
-                            )}
-                          </td>
-                          <td className="p-3 font-mono text-muted-foreground">
-                            {activity.targetType ? (
-                              <span>
-                                {activity.targetType}
-                                {activity.targetId ? ` (${activity.targetId.slice(0, 8)}...)` : ''}
-                              </span>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td className="p-3 pr-4 font-mono text-muted-foreground">
-                            <div className="flex items-center space-x-1.5">
-                              <Calendar className="h-3 w-3" />
-                              <span>{new Date(activity.createdAt).toLocaleString()}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+              {/* Curved Line */}
+              <path
+                d="M 50 110 C 100 95, 140 105, 190 115 C 240 120, 280 85, 330 80 C 380 75, 410 90, 450 85 C 470 82, 480 65, 490 60"
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+
+              {/* X-Axis Labels */}
+              <text x="45" y="198" className="text-[10px] fill-slate-400 font-medium">Feb</text>
+              <text x="133" y="198" className="text-[10px] fill-slate-400 font-medium">Mar</text>
+              <text x="221" y="198" className="text-[10px] fill-slate-400 font-medium">Apr</text>
+              <text x="310" y="198" className="text-[10px] fill-slate-400 font-medium">May</text>
+              <text x="400" y="198" className="text-[10px] fill-slate-400 font-medium">Jun</text>
+              <text x="480" y="198" className="text-[10px] fill-slate-400 font-medium">Jul</text>
+            </svg>
           </div>
         </div>
-      )}
+
+        {/* Chart 2: Active Colleges Over Time */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs">
+          <h2 className="text-sm font-bold text-slate-800 mb-6">
+            Active Colleges Over Time
+          </h2>
+
+          <div className="relative h-56 w-full">
+            <svg
+              className="w-full h-full overflow-visible"
+              viewBox="0 0 500 200"
+              preserveAspectRatio="none"
+            >
+              {/* Dotted Gridlines */}
+              <line x1="35" y1="20" x2="490" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="60" x2="490" y2="60" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="100" x2="490" y2="100" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="140" x2="490" y2="140" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="180" x2="490" y2="180" stroke="#e2e8f0" />
+
+              {/* Y-Axis Labels */}
+              <text x="15" y="24" className="text-[10px] fill-slate-400 font-mono">60</text>
+              <text x="15" y="64" className="text-[10px] fill-slate-400 font-mono">45</text>
+              <text x="15" y="104" className="text-[10px] fill-slate-400 font-mono">30</text>
+              <text x="15" y="144" className="text-[10px] fill-slate-400 font-mono">15</text>
+              <text x="20" y="184" className="text-[10px] fill-slate-400 font-mono">0</text>
+
+              {/* Trend Line */}
+              <path
+                d="M 50 100 L 135 85 L 225 72 L 315 60 L 405 50 L 485 38"
+                fill="none"
+                stroke="#8b5cf6"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              {/* Data Points */}
+              <circle cx="50" cy="100" r="4.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="135" cy="85" r="4.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="225" cy="72" r="4.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="315" cy="60" r="4.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="405" cy="50" r="4.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="485" cy="38" r="4.5" fill="#8b5cf6" stroke="#ffffff" strokeWidth="1.5" />
+
+              {/* X-Axis Labels */}
+              <text x="45" y="198" className="text-[10px] fill-slate-400 font-medium">Feb</text>
+              <text x="130" y="198" className="text-[10px] fill-slate-400 font-medium">Mar</text>
+              <text x="220" y="198" className="text-[10px] fill-slate-400 font-medium">Apr</text>
+              <text x="310" y="198" className="text-[10px] fill-slate-400 font-medium">May</text>
+              <text x="400" y="198" className="text-[10px] fill-slate-400 font-medium">Jun</text>
+              <text x="480" y="198" className="text-[10px] fill-slate-400 font-medium">Jul</text>
+            </svg>
+          </div>
+        </div>
+
+        {/* Chart 3: Enrollment Trend (All Colleges) */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs">
+          <h2 className="text-sm font-bold text-slate-800 mb-6">
+            Enrollment Trend (All Colleges)
+          </h2>
+
+          <div className="relative h-56 w-full">
+            <svg
+              className="w-full h-full overflow-visible"
+              viewBox="0 0 500 200"
+              preserveAspectRatio="none"
+            >
+              {/* Dotted Gridlines */}
+              <line x1="35" y1="20" x2="490" y2="20" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="60" x2="490" y2="60" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="100" x2="490" y2="100" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="140" x2="490" y2="140" stroke="#f1f5f9" strokeDasharray="3 3" />
+              <line x1="35" y1="180" x2="490" y2="180" stroke="#e2e8f0" />
+
+              {/* Y-Axis Labels */}
+              <text x="10" y="24" className="text-[10px] fill-slate-400 font-mono">220</text>
+              <text x="10" y="64" className="text-[10px] fill-slate-400 font-mono">165</text>
+              <text x="10" y="104" className="text-[10px] fill-slate-400 font-mono">110</text>
+              <text x="15" y="144" className="text-[10px] fill-slate-400 font-mono">55</text>
+              <text x="20" y="184" className="text-[10px] fill-slate-400 font-mono">0</text>
+
+              {/* Vertical Bars (Emerald/Teal) */}
+              <rect x="50" y="95" width="30" height="85" rx="3" fill="#10b981" />
+              <rect x="105" y="70" width="30" height="110" rx="3" fill="#10b981" />
+              <rect x="160" y="76" width="30" height="104" rx="3" fill="#10b981" />
+              <rect x="215" y="55" width="30" height="125" rx="3" fill="#10b981" />
+              <rect x="270" y="100" width="30" height="80" rx="3" fill="#10b981" />
+              <rect x="325" y="135" width="30" height="45" rx="3" fill="#10b981" />
+              <rect x="380" y="48" width="30" height="132" rx="3" fill="#10b981" />
+              <rect x="435" y="32" width="30" height="148" rx="3" fill="#10b981" />
+
+              {/* X-Axis Labels */}
+              <text x="54" y="198" className="text-[10px] fill-slate-400 font-medium">Aug</text>
+              <text x="109" y="198" className="text-[10px] fill-slate-400 font-medium">Sep</text>
+              <text x="165" y="198" className="text-[10px] fill-slate-400 font-medium">Oct</text>
+              <text x="219" y="198" className="text-[10px] fill-slate-400 font-medium">Nov</text>
+              <text x="274" y="198" className="text-[10px] fill-slate-400 font-medium">Dec</text>
+              <text x="330" y="198" className="text-[10px] fill-slate-400 font-medium">Jan</text>
+              <text x="385" y="198" className="text-[10px] fill-slate-400 font-medium">Feb</text>
+              <text x="438" y="198" className="text-[10px] fill-slate-400 font-medium">Mar</text>
+            </svg>
+          </div>
+        </div>
+
+        {/* Card 4: Top Colleges by Engagement */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800 mb-6">
+              Top Colleges by Engagement
+            </h2>
+
+            <div className="space-y-4">
+              {topColleges.map((college) => (
+                <div key={college.rank} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <span className="text-xs font-bold text-indigo-400 w-3 shrink-0">
+                        {college.rank}
+                      </span>
+                      <span className="font-semibold text-slate-800 truncate">
+                        {college.name}
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500 shrink-0 ml-2">
+                      {college.score}%
+                    </span>
+                  </div>
+
+                  <div className="pl-6 w-full">
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-[#5b52e0] h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${college.score}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom KPI Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: AVG SEAT UTILIZATION */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            AVG SEAT UTILIZATION
+          </p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+            73%
+          </p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            Across active colleges
+          </p>
+        </div>
+
+        {/* Card 2: AVG HEALTH SCORE */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            AVG HEALTH SCORE
+          </p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+            71.2
+          </p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            Platform-wide
+          </p>
+        </div>
+
+        {/* Card 3: TOTAL ASSESSMENTS TAKEN */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            TOTAL ASSESSMENTS TAKEN
+          </p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+            1.2M
+          </p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            Last 30 days
+          </p>
+        </div>
+
+        {/* Card 4: CERTIFICATES ISSUED */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            CERTIFICATES ISSUED
+          </p>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+            8,420
+          </p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            Last 30 days
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

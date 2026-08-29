@@ -73,12 +73,12 @@ describe('CollegeManagementPage', () => {
     });
 
     // Filter by Active status
-    await user.click(screen.getByRole('button', { name: /Active \(1\)/i }));
+    await user.click(screen.getByRole('button', { name: /^Active/i }));
     expect(screen.getByText('Harvard University')).toBeInTheDocument();
     expect(screen.queryByText('Oxford College')).not.toBeInTheDocument();
 
     // Filter by Suspended status
-    await user.click(screen.getByRole('button', { name: /Suspended \(1\)/i }));
+    await user.click(screen.getByRole('button', { name: /^Suspended/i }));
     expect(screen.queryByText('Harvard University')).not.toBeInTheDocument();
     expect(screen.getByText('Oxford College')).toBeInTheDocument();
   });
@@ -92,7 +92,7 @@ describe('CollegeManagementPage', () => {
       expect(screen.getByText('Harvard University')).toBeInTheDocument();
     });
 
-    const searchInput = screen.getByPlaceholderText(/Search by college name or domain/i);
+    const searchInput = screen.getByPlaceholderText(/Search by name or domain/i);
     fireEvent.change(searchInput, { target: { value: 'harvard' } });
 
     expect(screen.getByText('Harvard University')).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe('CollegeManagementPage', () => {
     });
 
     // Click Suspend on Harvard
-    await user.click(screen.getByTitle('Suspend College'));
+    await user.click(screen.getByRole('button', { name: /^Suspend$/i }));
 
     // Confirmation dialog appears
     expect(screen.getByText('Suspend Harvard University?')).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe('CollegeManagementPage', () => {
     });
 
     // Click Reactivate on Oxford
-    await user.click(screen.getByTitle('Reactivate College'));
+    await user.click(screen.getByRole('button', { name: /^Reactivate$/i }));
 
     // Confirmation dialog appears
     expect(screen.getByText('Reactivate Oxford College?')).toBeInTheDocument();

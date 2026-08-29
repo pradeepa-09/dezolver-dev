@@ -10,6 +10,8 @@ export const ROUTES = {
   SUPER_ADMIN_COLLEGES: '/super-admin/colleges',
   SUPER_ADMIN_PLANS: '/super-admin/plans',
   SUPER_ADMIN_ANALYTICS: '/super-admin/analytics',
+  SUPER_ADMIN_PROFILE: '/super-admin/profile',
+  PROFILE: '/profile',
   FORBIDDEN: '/403',
   NOT_FOUND: '/404',
 } as const;
