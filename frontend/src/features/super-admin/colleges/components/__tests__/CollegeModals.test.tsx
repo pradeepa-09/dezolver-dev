@@ -54,7 +54,7 @@ describe('College Modals & ImpersonationBanner', () => {
 
       // Enter valid name and domain
       await user.type(screen.getByLabelText(/College Name \*/i), 'Caltech');
-      await user.type(screen.getByLabelText(/Domain/i), 'caltech.edu');
+      await user.type(screen.getByLabelText(/Domain \*/i), 'caltech.edu');
       await user.click(screen.getByRole('button', { name: /Create College/i }));
 
       await waitFor(() => {
@@ -113,7 +113,7 @@ describe('College Modals & ImpersonationBanner', () => {
   });
 
   describe('CollegeDetailsModal', () => {
-    it('loads and renders real backend fields and user accounts', async () => {
+    it('loads and renders all 5 real detail tabs', async () => {
       const user = userEvent.setup();
       const mockDetail: CollegeDetail = {
         id: 'col-123',
@@ -130,6 +130,31 @@ describe('College Modals & ImpersonationBanner', () => {
             isActive: true,
           },
         ],
+        subscriptions: [
+          {
+            id: 'sub-1',
+            status: 'ACTIVE',
+            createdAt: '2026-08-25T10:00:00.000Z',
+            updatedAt: '2026-08-25T10:00:00.000Z',
+            plan: {
+              id: 'plan-1',
+              name: 'Enterprise Tier',
+              description: 'Full institutional suite',
+            },
+          },
+        ],
+        activityLogs: [
+          {
+            id: 'act-1',
+            action: 'COLLEGE_CREATED',
+            createdAt: '2026-08-25T10:00:00.000Z',
+            actor: {
+              id: 'super-1',
+              email: 'admin@dev.local',
+              role: 'SUPER_ADMIN',
+            },
+          },
+        ],
       };
 
       vi.spyOn(collegesApi, 'getCollege').mockResolvedValue(mockDetail);
@@ -142,26 +167,38 @@ describe('College Modals & ImpersonationBanner', () => {
         />,
       );
 
+      // Tab 1: Overview
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Stanford University' })).toBeInTheDocument();
         expect(screen.getByText('stanford.edu')).toBeInTheDocument();
       });
 
-      // Switch to Users tab
-      await user.click(screen.getByRole('button', { name: /Users/i }));
-      expect(screen.getByText('finance_col123@stanford.edu')).toBeInTheDocument();
-      expect(screen.getByText('ADMIN')).toBeInTheDocument();
+      // Tab 2: Seats & Plan
+      await user.click(screen.getByRole('button', { name: /Seats & Plan/i }));
+      expect(screen.getByText('Enterprise Tier')).toBeInTheDocument();
+      expect(screen.getByText('Full institutional suite')).toBeInTheDocument();
 
-      // Switch to Subscriptions placeholder tab
-      await user.click(screen.getByRole('button', { name: /Subscriptions/i }));
-      expect(screen.getByText(/Subscription & Billing Controls/i)).toBeInTheDocument();
+      // Tab 3: Finance Team Contact
+      await user.click(screen.getByRole('button', { name: /Finance Team Contact/i }));
+      expect(screen.getAllByText('finance_col123@stanford.edu').length).toBeGreaterThan(0);
+      expect(screen.getByText(/Finance Team \(ADMIN\)/i)).toBeInTheDocument();
+
+      // Tab 4: Billing History
+      await user.click(screen.getByRole('button', { name: /Billing History/i }));
+      expect(screen.getByText('No invoices yet')).toBeInTheDocument();
+
+      // Tab 5: Activity Log
+      await user.click(screen.getByRole('button', { name: /Activity Log/i }));
+      expect(screen.getByText('COLLEGE_CREATED')).toBeInTheDocument();
+      expect(screen.getByText('admin@dev.local')).toBeInTheDocument();
     });
   });
 
   describe('ImpersonationBanner', () => {
-    it('renders impersonation banner and triggers stop callback on return', async () => {
+    it('renders impersonation banner, countdown, and triggers stop callback on return', async () => {
       const mockStop = vi.fn();
       const user = userEvent.setup();
+      const expiresAt = new Date(Date.now() + 3500 * 1000).toISOString();
 
       render(
         <MemoryRouter>
@@ -169,6 +206,7 @@ describe('College Modals & ImpersonationBanner', () => {
             value={{
               isImpersonating: true,
               impersonationToken: 'token-abc',
+              expiresAt,
               targetCollege: { id: 'col-1', name: 'Harvard University' },
               financeUser: { id: 'u-1', email: 'finance@harvard.edu' },
               isLoading: false,
@@ -184,6 +222,7 @@ describe('College Modals & ImpersonationBanner', () => {
       expect(screen.getByText(/Viewing as Finance Team/i)).toBeInTheDocument();
       expect(screen.getByText('Harvard University')).toBeInTheDocument();
       expect(screen.getByText('(finance@harvard.edu)')).toBeInTheDocument();
+      expect(screen.getByText(/remaining/i)).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: /Return to Super Admin/i }));
       expect(mockStop).toHaveBeenCalledTimes(1);

@@ -7,6 +7,8 @@ const IMPERSONATION_STORAGE_KEY = 'dezolver_impersonation_session';
 
 export interface ImpersonationSession {
   impersonationToken: string;
+  expiresAt: string;
+  expiresIn?: number;
   targetCollege: {
     id: string;
     name: string;
@@ -20,6 +22,7 @@ export interface ImpersonationSession {
 export interface ImpersonationContextValue {
   isImpersonating: boolean;
   impersonationToken: string | null;
+  expiresAt: string | null;
   targetCollege: { id: string; name: string } | null;
   financeUser: { id: string; email: string } | null;
   isLoading: boolean;
@@ -41,7 +44,14 @@ export const ImpersonationProvider: React.FC<ImpersonationProviderProps> = ({
   const [session, setSession] = React.useState<ImpersonationSession | null>(() => {
     try {
       const stored = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+      const parsed = JSON.parse(stored) as ImpersonationSession;
+      // If already expired according to stored timestamp, ignore stored session
+      if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() <= Date.now()) {
+        sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -49,12 +59,50 @@ export const ImpersonationProvider: React.FC<ImpersonationProviderProps> = ({
 
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
 
+  const stopImpersonation = React.useCallback(async () => {
+    if (!session) return;
+    setIsLoading(true);
+
+    try {
+      // 1. Call the backend stop endpoint with impersonation JWT to emit audit log
+      await collegesApi.impersonateStop(
+        session.targetCollege.id,
+        session.impersonationToken,
+      );
+    } catch {
+      // Ignored: proceed to clean up locally
+    } finally {
+      // 2. Clear impersonation state
+      setSession(null);
+      try {
+        sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
+      } catch {
+        // Storage errors ignored
+      }
+
+      // 3. Trigger /auth/refresh to ensure Super Admin access token is completely fresh
+      try {
+        await apiClient.refreshAccessToken();
+      } catch {
+        // Refresh fallback: continue with existing access token
+      }
+
+      setIsLoading(false);
+    }
+  }, [session]);
+
   const startImpersonation = React.useCallback(async (college: College) => {
     setIsLoading(true);
     try {
       const result = await collegesApi.impersonateCollege(college.id);
+      const expiresAt =
+        result.expiresAt ||
+        new Date(Date.now() + (result.expiresIn || 3600) * 1000).toISOString();
+
       const newSession: ImpersonationSession = {
         impersonationToken: result.accessToken,
+        expiresAt,
+        expiresIn: result.expiresIn,
         targetCollege: {
           id: college.id,
           name: college.name,
@@ -76,40 +124,27 @@ export const ImpersonationProvider: React.FC<ImpersonationProviderProps> = ({
     }
   }, []);
 
-  const stopImpersonation = React.useCallback(async () => {
-    if (!session) return;
-    setIsLoading(true);
+  // Automatic expiration timer: check every second and gracefully end session when expired
+  React.useEffect(() => {
+    if (!session?.expiresAt) return;
 
-    try {
-      // 1. Call the backend stop endpoint with impersonation JWT to emit audit log
-      await collegesApi.impersonateStop(
-        session.targetCollege.id,
-        session.impersonationToken,
-      );
-    } finally {
-      // 2. Clear impersonation state
-      setSession(null);
-      try {
-        sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY);
-      } catch {
-        // Storage errors ignored
+    const checkExpiry = () => {
+      const remainingMs = new Date(session.expiresAt).getTime() - Date.now();
+      if (remainingMs <= 0) {
+        stopImpersonation();
       }
+    };
 
-      // 3. Trigger /auth/refresh to ensure Super Admin access token is completely fresh
-      try {
-        await apiClient.refreshAccessToken();
-      } catch {
-        // Refresh fallback: continue with existing access token
-      }
-
-      setIsLoading(false);
-    }
-  }, [session]);
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 1000);
+    return () => clearInterval(interval);
+  }, [session?.expiresAt, stopImpersonation]);
 
   const value = React.useMemo<ImpersonationContextValue>(() => {
     return {
       isImpersonating: !!session,
       impersonationToken: session?.impersonationToken || null,
+      expiresAt: session?.expiresAt || null,
       targetCollege: session?.targetCollege || null,
       financeUser: session?.financeUser || null,
       isLoading,

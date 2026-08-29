@@ -28,6 +28,46 @@ export interface CollegeUser {
   email: string;
   role: BackendRole;
   isActive: boolean;
+  createdAt?: string;
+  name?: string;
+  phone?: string;
+}
+
+/**
+ * Plan summary nested in Subscription
+ */
+export interface CollegePlan {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
+/**
+ * Subscription representation inside College Details
+ */
+export interface CollegeSubscription {
+  id: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  plan?: CollegePlan;
+}
+
+/**
+ * Activity / Audit Log entry for a College
+ */
+export interface CollegeActivityLog {
+  id: string;
+  action: string;
+  createdAt: string;
+  targetId?: string | null;
+  targetType?: string | null;
+  actor?: {
+    id: string;
+    email: string;
+    role: string;
+  } | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -35,6 +75,8 @@ export interface CollegeUser {
  */
 export interface CollegeDetail extends College {
   users: CollegeUser[];
+  subscriptions?: CollegeSubscription[];
+  activityLogs?: CollegeActivityLog[];
 }
 
 /**
@@ -74,6 +116,8 @@ export interface CreateCollegeResponse {
  */
 export interface ImpersonateResponse {
   accessToken: string;
+  expiresIn: number;
+  expiresAt: string;
   financeUser: {
     id: string;
     email: string;

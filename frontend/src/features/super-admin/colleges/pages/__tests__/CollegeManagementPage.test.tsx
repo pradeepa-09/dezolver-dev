@@ -162,6 +162,8 @@ describe('CollegeManagementPage', () => {
     vi.spyOn(collegesApi, 'getColleges').mockResolvedValue(mockColleges);
     const mockImpersonate = vi.spyOn(collegesApi, 'impersonateCollege').mockResolvedValue({
       accessToken: 'test-impersonation-jwt',
+      expiresIn: 3600,
+      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
       financeUser: { id: 'u-1', email: 'finance_col1@harvard.edu' },
     });
 
