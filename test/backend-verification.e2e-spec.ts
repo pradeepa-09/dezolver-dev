@@ -179,12 +179,75 @@ describe('Backend Verification (e2e)', () => {
           name: 'Verification College',
           domain: 'http://verify.example.com',
         });
-      console.log('Create College Response:', response.body);
 
       expect(response.status).toBe(201);
       expect(response.body.college).toBeDefined();
       expect(response.body.college.id).toBeDefined();
       createdCollegeId = response.body.college.id;
+
+      expect(response.body.financeUser).toBeDefined();
+      expect(response.body.financeUser.role).toBe('ADMIN');
+      expect(response.body.financeUser.email).toContain('finance_');
+      expect(response.body.financeUser.password).toBeUndefined();
+      expect(response.body.financeUser.passwordHash).toBeUndefined();
+    });
+
+    it('transaction rollback -> College not created if Finance User fails (during)', async () => {
+      const domain = 'http://rollback.example.com';
+      await prisma.college.deleteMany({ where: { domain } });
+      const bcrypt = require('bcrypt');
+      jest.spyOn(bcrypt, 'hash').mockRejectedValueOnce(new Error('Simulated failure'));
+      
+      await request(app.getHttpServer())
+        .post('/colleges')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          name: 'Rollback College',
+          domain: domain,
+        })
+        .expect(500);
+
+      const college = await prisma.college.findUnique({ where: { domain } });
+      expect(college).toBeNull();
+      
+      jest.restoreAllMocks();
+    });
+
+    it('transaction rollback -> College and User cleaned up if AuditLog fails (after Finance User)', async () => {
+      const domain = 'http://rollback-audit.example.com';
+      await prisma.college.deleteMany({ where: { domain } });
+      
+      jest.spyOn(prisma.auditLog, 'create').mockRejectedValueOnce(new Error('Simulated audit failure'));
+      
+      await request(app.getHttpServer())
+        .post('/colleges')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          name: 'Rollback College 2',
+          domain: domain,
+        })
+        .expect(500);
+
+      const college = await prisma.college.findUnique({ where: { domain } });
+      expect(college).toBeNull();
+
+      const orphanedUser = await prisma.user.findFirst({ where: { email: { contains: 'rollback-audit.example.com' } } });
+      expect(orphanedUser).toBeNull();
+      
+      jest.restoreAllMocks();
+    });
+
+    it('GET /api/colleges -> array of colleges', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/colleges')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBeGreaterThan(0);
+      expect(response.body[0].id).toBeDefined();
+      expect(response.body[0].name).toBeDefined();
+      expect(response.body[0].domain).toBeDefined();
     });
 
     it('duplicate domain -> rejected', async () => {
@@ -198,13 +261,61 @@ describe('Backend Verification (e2e)', () => {
         .expect(409);
     });
 
-    it('get college -> successful', async () => {
+    it('College without subscription still returns successfully with an empty/null subscription', async () => {
       const response = await request(app.getHttpServer())
         .get(`/colleges/${createdCollegeId}`)
         .set('Authorization', `Bearer ${superAdminToken}`)
         .expect(200);
 
       expect(response.body.id).toBe(createdCollegeId);
+      expect(response.body.subscriptions).toEqual([]);
+    });
+
+    it('College with active subscription returns subscription information', async () => {
+      const plan = await prisma.plan.create({
+        data: {
+          name: 'Pro Plan',
+          description: 'Pro Features',
+        },
+      });
+
+      const subscription = await prisma.subscription.create({
+        data: {
+          status: 'ACTIVE',
+          collegeId: createdCollegeId,
+          planId: plan.id,
+        },
+      });
+
+      const response = await request(app.getHttpServer())
+        .get(`/colleges/${createdCollegeId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(response.body.subscriptions).toBeDefined();
+      expect(response.body.subscriptions.length).toBe(1);
+      expect(response.body.subscriptions[0].id).toBe(subscription.id);
+      expect(response.body.subscriptions[0].plan).toBeDefined();
+      expect(response.body.subscriptions[0].plan.name).toBe('Pro Plan');
+      
+      // Sensitive credentials are not present
+      if (response.body.users && response.body.users.length > 0) {
+        expect(response.body.users[0].password).toBeUndefined();
+      }
+    });
+
+    it('Nonexistent college returns 404', async () => {
+      await request(app.getHttpServer())
+        .get('/colleges/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(404);
+    });
+
+    it('malformed College UUID -> 400', async () => {
+      await request(app.getHttpServer())
+        .get('/colleges/not-a-uuid')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(400);
     });
 
     it('update college -> successful', async () => {
@@ -224,6 +335,15 @@ describe('Backend Verification (e2e)', () => {
         .expect(201); // Assuming 201 for POST operations unless specified 200
 
       expect(response.body.status).toBe('SUSPENDED');
+
+      const decodedToken = jwtService.decode(superAdminToken) as any;
+      const auditLog = await prisma.auditLog.findFirst({
+        where: { action: 'COLLEGE_SUSPENDED', targetId: createdCollegeId },
+        orderBy: { createdAt: 'desc' }
+      });
+      expect(auditLog).toBeDefined();
+      expect(auditLog?.actorId).toBe(decodedToken.sub);
+      expect(auditLog?.targetId).toBe(createdCollegeId);
     });
 
     it('suspend already suspended college -> rejected', async () => {
@@ -240,6 +360,31 @@ describe('Backend Verification (e2e)', () => {
         .expect(201);
 
       expect(response.body.status).toBe('ACTIVE');
+
+      const decodedToken = jwtService.decode(superAdminToken) as any;
+      const auditLog = await prisma.auditLog.findFirst({
+        where: { action: 'COLLEGE_REACTIVATED', targetId: createdCollegeId },
+        orderBy: { createdAt: 'desc' }
+      });
+      expect(auditLog).toBeDefined();
+      expect(auditLog?.actorId).toBe(decodedToken.sub);
+      expect(auditLog?.targetId).toBe(createdCollegeId);
+    });
+
+    it('impersonation -> ADMIN cannot start impersonation -> 403', async () => {
+      const adminToken = jwtService.sign({ sub: 'test-admin', role: 'ADMIN', collegeId: createdCollegeId });
+      await request(app.getHttpServer())
+        .post(`/colleges/${createdCollegeId}/impersonate`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(403);
+    });
+
+    it('impersonation -> USER cannot start impersonation -> 403', async () => {
+      const userToken = jwtService.sign({ sub: 'test-user', role: 'USER', collegeId: createdCollegeId });
+      await request(app.getHttpServer())
+        .post(`/colleges/${createdCollegeId}/impersonate`)
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(403);
     });
 
     it('impersonation -> successful', async () => {
@@ -256,6 +401,7 @@ describe('Backend Verification (e2e)', () => {
       expect(decoded.isImpersonation).toBe(true);
       expect(decoded.impersonatorId).toBeDefined();
       expect(decoded.targetCollegeId).toBe(createdCollegeId);
+      expect(decoded.jti).toBeDefined();
     });
 
     it('impersonation stop -> successful and audit event generated', async () => {
@@ -266,10 +412,100 @@ describe('Backend Verification (e2e)', () => {
 
       expect(response.body.success).toBe(true);
 
-      const auditLogs = await prisma.auditLog.findMany({
+      const decodedToken = jwtService.decode(superAdminToken) as any;
+      const auditLog = await prisma.auditLog.findFirst({
         where: { action: 'IMPERSONATION_ENDED' },
+        orderBy: { createdAt: 'desc' }
       });
-      expect(auditLogs.length).toBeGreaterThan(0);
+      expect(auditLog).toBeDefined();
+      expect(auditLog?.targetId).toBe(createdCollegeId);
+      
+      const meta = auditLog?.metadata as any;
+      expect(meta?.targetCollegeId).toBe(createdCollegeId);
+      expect(meta?.impersonatorId).toBe(decodedToken.sub);
+      expect(meta?.jti).toBeDefined();
+    });
+
+    it('stopped/revoked token cannot continue accessing protected resources', async () => {
+      // The token was stopped in the previous test
+      await request(app.getHttpServer())
+        .get(`/colleges/${createdCollegeId}`)
+        .set('Authorization', `Bearer ${impersonationToken}`)
+        .expect(401);
+    });
+
+    it('original Super Admin session remains valid after stopping impersonation', async () => {
+      await request(app.getHttpServer())
+        .get(`/colleges/${createdCollegeId}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(200);
+    });
+
+    it('impersonation token has expiry (expired token rejected server-side)', async () => {
+      const expiredPayload = {
+        sub: 'some-finance-admin-id',
+        role: 'ADMIN',
+        isImpersonation: true,
+        impersonatorId: 'super-admin-id',
+        targetCollegeId: createdCollegeId,
+        jti: 'expired-token-id',
+      };
+      const expiredToken = jwtService.sign(expiredPayload, { expiresIn: '-1s' });
+      await request(app.getHttpServer())
+        .get(`/colleges/${createdCollegeId}`)
+        .set('Authorization', `Bearer ${expiredToken}`)
+        .expect(401);
+    });
+
+    it('impersonation cannot escalate to SUPER_ADMIN', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/colleges/${createdCollegeId}/impersonate`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .expect(201);
+      
+      const freshToken = response.body.accessToken;
+      
+      // Attempting to access list of colleges requires colleges:list which is SUPER_ADMIN
+      await request(app.getHttpServer())
+        .get('/colleges')
+        .set('Authorization', `Bearer ${freshToken}`)
+        .expect(403);
+    });
+
+    it('repeated suspend requests eventually receive 429', async () => {
+      let status = 200;
+      for (let i = 0; i < 15; i++) {
+        const res = await request(app.getHttpServer())
+          .post(`/colleges/${createdCollegeId}/suspend`)
+          .set('Authorization', `Bearer ${superAdminToken}`);
+        status = res.status;
+        if (status === 429) break;
+      }
+      expect(status).toBe(429);
+    });
+
+    it('repeated reactivate requests eventually receive 429', async () => {
+      let status = 200;
+      for (let i = 0; i < 15; i++) {
+        const res = await request(app.getHttpServer())
+          .post(`/colleges/${createdCollegeId}/reactivate`)
+          .set('Authorization', `Bearer ${superAdminToken}`);
+        status = res.status;
+        if (status === 429) break;
+      }
+      expect(status).toBe(429);
+    });
+
+    it('repeated impersonation-start requests eventually receive 429', async () => {
+      let status = 200;
+      for (let i = 0; i < 15; i++) {
+        const res = await request(app.getHttpServer())
+          .post(`/colleges/${createdCollegeId}/impersonate`)
+          .set('Authorization', `Bearer ${superAdminToken}`);
+        status = res.status;
+        if (status === 429) break;
+      }
+      expect(status).toBe(429);
     });
   });
 

@@ -7,7 +7,9 @@ import {
   Param,
   UseGuards,
   Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { CollegesService } from './colleges.service';
 import { CreateCollegeDto } from './dto/create-college.dto';
 import { UpdateCollegeDto } from './dto/update-college.dto';
@@ -37,14 +39,14 @@ export class CollegesController {
 
   @Get(':id')
   @RequirePermission('colleges:read')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.collegesService.findOne(id);
   }
 
   @Patch(':id')
   @RequirePermission('colleges:update')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateCollegeDto: UpdateCollegeDto,
     @Req() req: { user: { id: string } },
   ) {
@@ -52,20 +54,32 @@ export class CollegesController {
   }
 
   @Post(':id/suspend')
+  @UseGuards(ThrottlerGuard)
   @RequirePermission('colleges:manage_status')
-  suspend(@Param('id') id: string, @Req() req: { user: { id: string } }) {
+  suspend(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: { user: { id: string } },
+  ) {
     return this.collegesService.suspend(id, req.user.id);
   }
 
   @Post(':id/reactivate')
+  @UseGuards(ThrottlerGuard)
   @RequirePermission('colleges:manage_status')
-  reactivate(@Param('id') id: string, @Req() req: { user: { id: string } }) {
+  reactivate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: { user: { id: string } },
+  ) {
     return this.collegesService.reactivate(id, req.user.id);
   }
 
   @Post(':id/impersonate')
+  @UseGuards(ThrottlerGuard)
   @RequirePermission('colleges:impersonate')
-  impersonate(@Param('id') id: string, @Req() req: { user: { id: string } }) {
+  impersonate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: { user: { id: string } },
+  ) {
     return this.collegesService.impersonate(id, req.user.id);
   }
 
@@ -78,6 +92,7 @@ export class CollegesController {
         impersonatorId?: string;
         id?: string;
         targetCollegeId?: string;
+        jti?: string;
       };
     },
   ) {

@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CollegesController } from './colleges.controller';
 import { CollegesService } from './colleges.service';
 
+import { ThrottlerGuard } from '@nestjs/throttler';
+
 const mockCollegesService = {
   create: jest.fn(),
   findAll: jest.fn(),
@@ -26,7 +28,10 @@ describe('CollegesController', () => {
           useValue: mockCollegesService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<CollegesController>(CollegesController);
   });

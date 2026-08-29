@@ -31,22 +31,23 @@ export class CollegesService {
       }
     }
 
-    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // 1. Create College
-      const college = await tx.college.create({
-        data: {
-          name: createCollegeDto.name,
-          domain: createCollegeDto.domain,
-          status: 'ACTIVE',
-        },
-      });
+    // 1. Create College
+    const college = await this.prisma.college.create({
+      data: {
+        name: createCollegeDto.name,
+        domain: createCollegeDto.domain,
+        status: 'ACTIVE',
+      },
+    });
 
+    let financeUserId: string | null = null;
+    try {
       // 2. Create Finance Team login (ADMIN)
       const rawPassword = crypto.randomBytes(16).toString('hex');
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
       const financeEmail = `finance_${college.id.split('-')[0]}@${createCollegeDto.domain || 'dev.local'}`;
 
-      const financeUser = await tx.user.create({
+      const financeUser = await this.prisma.user.create({
         data: {
           email: financeEmail,
           password: hashedPassword,
@@ -55,9 +56,10 @@ export class CollegesService {
           isActive: true,
         },
       });
+      financeUserId = financeUser.id;
 
       // 3. Emit Audit Log
-      await tx.auditLog.create({
+      await this.prisma.auditLog.create({
         data: {
           action: 'COLLEGE_CREATED',
           actorId,
@@ -74,7 +76,15 @@ export class CollegesService {
         college,
         financeUser: safeFinanceUser,
       };
-    });
+    } catch (error) {
+      // Manual rollback since Prisma interactive transactions are currently broken by the global RLS extension
+      // Must delete dependencies (Finance Team User) before deleting College to prevent Foreign Key constraint violations
+      if (financeUserId) {
+        await this.prisma.user.delete({ where: { id: financeUserId } });
+      }
+      await this.prisma.college.delete({ where: { id: college.id } });
+      throw error;
+    }
   }
 
   async findAll() {
@@ -89,6 +99,21 @@ export class CollegesService {
       include: {
         users: {
           select: { id: true, email: true, role: true, isActive: true },
+        },
+        subscriptions: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            plan: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
         },
       },
     });
@@ -211,6 +236,7 @@ export class CollegesService {
       isImpersonation: true,
       impersonatorId: superAdminId,
       targetCollegeId: college.id,
+      jti: crypto.randomUUID(),
     };
 
     const token = this.jwtService.sign(payload, { expiresIn: '1h' });
@@ -236,6 +262,7 @@ export class CollegesService {
     impersonatorId?: string;
     id?: string;
     targetCollegeId?: string;
+    jti?: string;
   }) {
     if (!actorUser.isImpersonation || !actorUser.impersonatorId) {
       throw new UnauthorizedException('Not an active impersonation session');
@@ -245,11 +272,12 @@ export class CollegesService {
       data: {
         action: 'IMPERSONATION_ENDED',
         actorId: actorUser.id,
-        targetId: actorUser.id,
-        targetType: 'User',
+        targetId: actorUser.targetCollegeId,
+        targetType: 'College',
         metadata: {
           targetCollegeId: actorUser.targetCollegeId,
           impersonatorId: actorUser.impersonatorId,
+          jti: actorUser.jti,
         },
       },
     });
