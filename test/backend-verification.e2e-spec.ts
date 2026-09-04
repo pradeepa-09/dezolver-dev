@@ -31,6 +31,17 @@ describe('Backend Verification (e2e)', () => {
 
     prisma = app.get(PrismaService);
     jwtService = app.get(JwtService);
+    
+    // Clean up from previous failed test runs
+    const testCollege = await prisma.college.findFirst({
+      where: { domain: 'http://verify.example.com' }
+    });
+    if (testCollege) {
+      await prisma.user.deleteMany({ where: { collegeId: testCollege.id } });
+      await prisma.auditLog.deleteMany({ where: { targetId: testCollege.id } });
+      await prisma.subscription.deleteMany({ where: { collegeId: testCollege.id } });
+      await prisma.college.delete({ where: { id: testCollege.id } });
+    }
   });
 
   afterAll(async () => {
@@ -73,13 +84,13 @@ describe('Backend Verification (e2e)', () => {
       expect(cookies).toBeDefined();
       superAdminToken = response.body.data.accessToken;
 
-      const refreshTokenCookie = cookies.find((c: string) =>
+      const refreshTokenCookie = (cookies as unknown as string[]).find((c: string) =>
         c.includes('refreshToken='),
       );
       expect(refreshTokenCookie).toBeDefined();
       expect(refreshTokenCookie).toContain('HttpOnly');
 
-      superAdminRefreshTokenCookie = refreshTokenCookie.split(';')[0];
+      superAdminRefreshTokenCookie = refreshTokenCookie!.split(';')[0];
     });
 
     it('/auth/login (POST) invalid password -> 401', async () => {
@@ -107,8 +118,8 @@ describe('Backend Verification (e2e)', () => {
       superAdminToken = response.body.data.accessToken;
 
       const cookies = response.headers['set-cookie'];
-      superAdminRefreshTokenCookie = cookies
-        .find((c: string) => c.includes('refreshToken='))
+      superAdminRefreshTokenCookie = (cookies as unknown as string[])
+        .find((c: string) => c.includes('refreshToken='))!
         .split(';')[0];
     });
 
@@ -276,7 +287,14 @@ describe('Backend Verification (e2e)', () => {
         data: {
           name: 'Pro Plan',
           description: 'Pro Features',
+          versions: {
+            create: {
+              version: 1,
+              price: 1000,
+            }
+          }
         },
+        include: { versions: true }
       });
 
       const subscription = await prisma.subscription.create({
@@ -284,6 +302,7 @@ describe('Backend Verification (e2e)', () => {
           status: 'ACTIVE',
           collegeId: createdCollegeId,
           planId: plan.id,
+          planVersionId: plan.versions[0].id,
         },
       });
 

@@ -7,8 +7,8 @@ import { ClsService } from 'nestjs-cls';
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
+  implements OnModuleInit, OnModuleDestroy {
+
   constructor(private readonly cls: ClsService) {
     const connectionString = process.env.DATABASE_URL;
     const pool = new Pool({ connectionString });

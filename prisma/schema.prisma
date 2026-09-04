@@ -12,6 +12,11 @@ enum Role {
   USER
 }
 
+enum PricingMode {
+  AUTOMATIC
+  MANUAL
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -46,9 +51,30 @@ model Plan {
   id          String   @id @default(uuid())
   name        String
   description String?
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  versions      PlanVersion[]
+  subscriptions Subscription[]
+}
+
+model PlanVersion {
+  id          String      @id @default(uuid())
+  version     Int
+  
+  planId      String
+  plan        Plan        @relation(fields: [planId], references: [id])
+  
+  pricingMode PricingMode @default(AUTOMATIC)
+  price       Int
+  currency    String      @default("INR")
+  
+  minSeats    Int?
+  maxSeats    Int?
+  
+  createdAt   DateTime    @default(now())
+  
   subscriptions Subscription[]
 }
 
@@ -63,6 +89,9 @@ model Subscription {
 
   planId String
   plan   Plan   @relation(fields: [planId], references: [id])
+
+  planVersionId String
+  planVersion   PlanVersion @relation(fields: [planVersionId], references: [id])
 }
 
 model AuditLog {

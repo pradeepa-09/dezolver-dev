@@ -23,12 +23,21 @@ export class SubscriptionsService {
       throw new NotFoundException('College not found');
     }
 
-    // Validate Plan exists
+    // Validate Plan exists and is active
     const plan = await this.prisma.plan.findUnique({
       where: { id: planId },
+      include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
     });
     if (!plan) {
       throw new NotFoundException('Plan not found');
+    }
+
+    const latestVersion = plan.versions[0];
+    if (!latestVersion) {
+      throw new NotFoundException('Plan version not found');
+    }
+    if (!plan.isActive) {
+      throw new ConflictException('Plan is not active and cannot be purchased');
     }
 
     // Reject duplicate active subscription
@@ -42,32 +51,31 @@ export class SubscriptionsService {
       throw new ConflictException('College already has an active subscription');
     }
 
-    // Create inside a transaction
-    return this.prisma.$transaction(async (tx) => {
-      const subscription = await tx.subscription.create({
-        data: {
+    const subscription = await this.prisma.subscription.create({
+      data: {
+        collegeId,
+        planId,
+        planVersionId: latestVersion.id,
+        status: 'ACTIVE',
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'SUBSCRIPTION_CREATED',
+        actorId,
+        targetId: subscription.id,
+        targetType: 'Subscription',
+        metadata: {
           collegeId,
           planId,
+          planVersionId: latestVersion.id,
           status: 'ACTIVE',
         },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          action: 'SUBSCRIPTION_CREATED',
-          actorId,
-          targetId: subscription.id,
-          targetType: 'Subscription',
-          metadata: {
-            collegeId,
-            planId,
-            status: 'ACTIVE',
-          },
-        },
-      });
-
-      return subscription;
+      },
     });
+
+    return subscription;
   }
 
   async findAll() {
@@ -80,6 +88,7 @@ export class SubscriptionsService {
         updatedAt: true,
         collegeId: true,
         planId: true,
+        planVersionId: true,
         college: {
           select: {
             id: true,
@@ -92,6 +101,15 @@ export class SubscriptionsService {
           select: {
             id: true,
             name: true,
+          },
+        },
+        planVersion: {
+          select: {
+            id: true,
+            version: true,
+            pricingMode: true,
+            price: true,
+            currency: true,
           },
         },
       },
@@ -108,6 +126,7 @@ export class SubscriptionsService {
         updatedAt: true,
         collegeId: true,
         planId: true,
+        planVersionId: true,
         college: {
           select: {
             id: true,
@@ -121,6 +140,17 @@ export class SubscriptionsService {
             id: true,
             name: true,
             description: true,
+          },
+        },
+        planVersion: {
+          select: {
+            id: true,
+            version: true,
+            pricingMode: true,
+            price: true,
+            currency: true,
+            minSeats: true,
+            maxSeats: true,
           },
         },
       },
@@ -142,13 +172,26 @@ export class SubscriptionsService {
       throw new NotFoundException('Subscription not found');
     }
 
+    let newPlanVersionId: string | undefined;
+
     if (updateDto.planId) {
       const plan = await this.prisma.plan.findUnique({
         where: { id: updateDto.planId },
+        include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
       });
       if (!plan) {
         throw new NotFoundException('Plan not found');
       }
+      if (!plan.isActive) {
+        throw new ConflictException(
+          'Plan is not active and cannot be purchased',
+        );
+      }
+      const latestVersion = plan.versions[0];
+      if (!latestVersion) {
+        throw new NotFoundException('Plan version not found');
+      }
+      newPlanVersionId = latestVersion.id;
     }
 
     if (updateDto.status === 'ACTIVE' && subscription.status !== 'ACTIVE') {
@@ -167,26 +210,27 @@ export class SubscriptionsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updatedSubscription = await tx.subscription.update({
-        where: { id },
-        data: {
-          ...(updateDto.planId && { planId: updateDto.planId }),
-          ...(updateDto.status && { status: updateDto.status }),
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          action: 'SUBSCRIPTION_UPDATED',
-          actorId,
-          targetId: subscription.id,
-          targetType: 'Subscription',
-          metadata: updateDto as Prisma.InputJsonValue,
-        },
-      });
-
-      return updatedSubscription;
+    const updatedSubscription = await this.prisma.subscription.update({
+      where: { id },
+      data: {
+        ...(updateDto.planId && {
+          planId: updateDto.planId,
+          planVersionId: newPlanVersionId,
+        }),
+        ...(updateDto.status && { status: updateDto.status }),
+      },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'SUBSCRIPTION_UPDATED',
+        actorId,
+        targetId: subscription.id,
+        targetType: 'Subscription',
+        metadata: updateDto as Prisma.InputJsonValue,
+      },
+    });
+
+    return updatedSubscription;
   }
 }

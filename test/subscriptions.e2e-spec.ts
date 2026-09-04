@@ -40,28 +40,39 @@ describe('Subscriptions Backend (e2e)', () => {
     jwtService = app.get(JwtService);
 
     // Setup basic tokens
-    const superAdmin = await prisma.user.findUnique({
+    let superAdmin = await prisma.user.findUnique({
       where: { email: superAdminEmail },
     });
-    if (superAdmin) {
-      superAdminToken = jwtService.sign({
-        sub: superAdmin.id,
-        role: 'SUPER_ADMIN',
-      });
-    } else {
-      // Create a dummy token if not found (should be seeded)
-      superAdminToken = jwtService.sign({
-        sub: 'super-admin-id',
-        role: 'SUPER_ADMIN',
+    if (!superAdmin) {
+      superAdmin = await prisma.user.create({
+        data: {
+          id: 'super-admin-id',
+          email: superAdminEmail,
+          password: 'test',
+          role: 'SUPER_ADMIN',
+        },
       });
     }
+    superAdminToken = jwtService.sign({
+      sub: superAdmin.id,
+      role: 'SUPER_ADMIN',
+    });
 
     userToken = jwtService.sign({ sub: 'user-id', role: 'USER' });
     adminToken = jwtService.sign({ sub: 'admin-id', role: 'ADMIN' });
 
     // Create a Plan
     const plan = await prisma.plan.create({
-      data: { name: 'E2E Test Plan', description: 'Test' },
+      data: {
+        name: 'E2E Test Plan',
+        description: 'Test',
+        versions: {
+          create: {
+            version: 1,
+            price: 1000,
+          }
+        }
+      },
     });
     testPlanId = plan.id;
 
@@ -80,6 +91,7 @@ describe('Subscriptions Backend (e2e)', () => {
       where: { collegeId: testCollegeId },
     });
     await prisma.college.delete({ where: { id: testCollegeId } });
+    await prisma.planVersion.deleteMany({ where: { planId: testPlanId } });
     await prisma.plan.delete({ where: { id: testPlanId } });
     await app.close();
   });

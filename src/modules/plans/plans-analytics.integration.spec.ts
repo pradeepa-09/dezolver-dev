@@ -19,7 +19,7 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
   let adminToken: string;
   let userToken: string;
 
-  const mockPrisma = {
+  const mockPrisma: any = {
     plan: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -41,6 +41,10 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
       create: jest.fn(),
       findMany: jest.fn(),
     },
+    planVersion: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn(async (cb: any) => await cb(mockPrisma)),
     $connect: jest.fn(),
     $disconnect: jest.fn(),
   };
@@ -152,6 +156,15 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
         id: 'plan-new',
         name: 'Growth Plan',
         description: 'For growing colleges',
+        versions: [
+          {
+            pricingMode: 'AUTOMATIC',
+            price: 5000,
+            currency: 'INR',
+            minSeats: null,
+            maxSeats: null,
+          },
+        ],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -164,6 +177,7 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
         .send({
           name: 'Growth Plan',
           description: 'For growing colleges',
+          price: 5000,
         })
         .expect(201);
 
@@ -177,6 +191,11 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
           metadata: {
             name: 'Growth Plan',
             description: 'For growing colleges',
+            pricingMode: 'AUTOMATIC',
+            price: 5000,
+            currency: 'INR',
+            minSeats: null,
+            maxSeats: null,
           },
         },
       });
@@ -205,14 +224,18 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
         id: 'plan-new',
         name: 'Growth Plan',
         description: 'Old description',
+        versions: [{ version: 1, price: 5000 }],
       };
-      mockPrisma.plan.findUnique.mockResolvedValue(existing);
-      mockPrisma.plan.findFirst.mockResolvedValue(null);
       const updated = {
         ...existing,
         name: 'Growth Plan Pro',
         description: 'Updated description',
+        versions: [{ version: 1, price: 5000 }],
       };
+      mockPrisma.plan.findUnique
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(updated);
+      mockPrisma.plan.findFirst.mockResolvedValue(null);
       mockPrisma.plan.update.mockResolvedValue(updated);
       mockPrisma.auditLog.create.mockResolvedValue({ id: 'audit-2' });
 

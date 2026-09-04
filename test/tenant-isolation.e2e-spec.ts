@@ -23,7 +23,7 @@ describe('Tenant Isolation (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api');
+    
     prisma = app.get(PrismaService);
     await app.init();
 
@@ -76,19 +76,19 @@ describe('Tenant Isolation (e2e)', () => {
     });
 
     let res = await request(app.getHttpServer())
-      .post('/api/auth/login')
+      .post('/auth/login')
       .send({ email: 'adminA@e2e-tenant.com', password: 'password123' });
     adminAToken = (res.body as { data: { accessToken: string } }).data
       .accessToken;
 
     res = await request(app.getHttpServer())
-      .post('/api/auth/login')
+      .post('/auth/login')
       .send({ email: 'adminB@e2e-tenant.com', password: 'password123' });
     adminBToken = (res.body as { data: { accessToken: string } }).data
       .accessToken;
 
     res = await request(app.getHttpServer())
-      .post('/api/auth/login')
+      .post('/auth/login')
       .send({ email: 'super@e2e-tenant.com', password: 'password123' });
     superAdminToken = (res.body as { data: { accessToken: string } }).data
       .accessToken;
@@ -109,7 +109,7 @@ describe('Tenant Isolation (e2e)', () => {
 
   it('Admin A can access College A data (ALLOWED)', async () => {
     const res = await request(app.getHttpServer())
-      .get(`/api/colleges/${collegeA.id}`)
+      .get(`/colleges/${collegeA.id}`)
       .set('Authorization', `Bearer ${adminAToken}`);
     expect(res.status).toBe(200);
     expect((res.body as { id: string }).id).toBe(collegeA.id);
@@ -117,14 +117,14 @@ describe('Tenant Isolation (e2e)', () => {
 
   it('Admin A cannot access College B data (DENIED)', async () => {
     const res = await request(app.getHttpServer())
-      .get(`/api/colleges/${collegeB.id}`)
+      .get(`/colleges/${collegeB.id}`)
       .set('Authorization', `Bearer ${adminAToken}`);
     expect(res.status).toBe(404);
   });
 
   it('Admin B can access College B data (ALLOWED)', async () => {
     const res = await request(app.getHttpServer())
-      .get(`/api/colleges/${collegeB.id}`)
+      .get(`/colleges/${collegeB.id}`)
       .set('Authorization', `Bearer ${adminBToken}`);
     expect(res.status).toBe(200);
     expect((res.body as { id: string }).id).toBe(collegeB.id);
@@ -132,14 +132,14 @@ describe('Tenant Isolation (e2e)', () => {
 
   it('Admin B cannot access College A data (DENIED)', async () => {
     const res = await request(app.getHttpServer())
-      .get(`/api/colleges/${collegeA.id}`)
+      .get(`/colleges/${collegeA.id}`)
       .set('Authorization', `Bearer ${adminBToken}`);
     expect(res.status).toBe(404);
   });
 
   it('SUPER_ADMIN can access College A data (ALLOWED)', async () => {
     const res = await request(app.getHttpServer())
-      .get(`/api/colleges/${collegeA.id}`)
+      .get(`/colleges/${collegeA.id}`)
       .set('Authorization', `Bearer ${superAdminToken}`);
     expect(res.status).toBe(200);
     expect((res.body as { id: string }).id).toBe(collegeA.id);
@@ -148,7 +148,7 @@ describe('Tenant Isolation (e2e)', () => {
   it('SUPER_ADMIN impersonating College A can access College A but not College B', async () => {
     // 1. Impersonate College A
     const impersonateRes = await request(app.getHttpServer())
-      .post(`/api/colleges/${collegeA.id}/impersonate`)
+      .post(`/colleges/${collegeA.id}/impersonate`)
       .set('Authorization', `Bearer ${superAdminToken}`);
 
     expect(impersonateRes.status).toBe(201);
@@ -157,14 +157,14 @@ describe('Tenant Isolation (e2e)', () => {
 
     // 2. Access College A (ALLOWED)
     const resA = await request(app.getHttpServer())
-      .get(`/api/colleges/${collegeA.id}`)
+      .get(`/colleges/${collegeA.id}`)
       .set('Authorization', `Bearer ${impersonatedToken}`);
     expect(resA.status).toBe(200);
     expect((resA.body as { id: string }).id).toBe(collegeA.id);
 
     // 3. Access College B (DENIED)
     const resB = await request(app.getHttpServer())
-      .get(`/api/colleges/${collegeB.id}`)
+      .get(`/colleges/${collegeB.id}`)
       .set('Authorization', `Bearer ${impersonatedToken}`);
     expect(resB.status).toBe(404);
   });

@@ -7,6 +7,7 @@ const mockPlansService = {
   findAll: jest.fn(),
   findOne: jest.fn(),
   update: jest.fn(),
+  updateStatus: jest.fn(),
 };
 
 describe('PlansController', () => {
@@ -32,7 +33,7 @@ describe('PlansController', () => {
   });
 
   it('should call service.create with user id from req', async () => {
-    const dto = { name: 'Starter', description: 'Base plan' };
+    const dto: any = { name: 'Starter', description: 'Base plan', price: 1000 };
     const req = { user: { id: 'admin-id' } };
     mockPlansService.create.mockResolvedValue({ id: 'p1', ...dto });
 
@@ -63,5 +64,22 @@ describe('PlansController', () => {
     const result = await controller.update('p1', dto, req);
     expect(mockPlansService.update).toHaveBeenCalledWith('p1', dto, 'admin-id');
     expect(result).toEqual({ id: 'p1', ...dto });
+  });
+
+  it('should call service.updateStatus with id, isActive, and actor id', async () => {
+    const dto = { isActive: false };
+    const req = { user: { id: 'admin-id' } };
+    mockPlansService.updateStatus.mockResolvedValue({
+      id: 'p1',
+      isActive: false,
+    });
+
+    const result = await controller.updateStatus('p1', dto, req);
+    expect(mockPlansService.updateStatus).toHaveBeenCalledWith(
+      'p1',
+      false,
+      'admin-id',
+    );
+    expect(result).toEqual({ id: 'p1', isActive: false });
   });
 });

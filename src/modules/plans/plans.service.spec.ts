@@ -3,7 +3,7 @@ import { PlansService } from './plans.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 
-const mockPrismaService = {
+const mockPrismaService: any = {
   plan: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),
@@ -14,6 +14,10 @@ const mockPrismaService = {
   auditLog: {
     create: jest.fn(),
   },
+  planVersion: {
+    create: jest.fn(),
+  },
+  $transaction: jest.fn(async (cb: any) => await cb(mockPrismaService)),
 };
 
 describe('PlansService', () => {
@@ -45,6 +49,15 @@ describe('PlansService', () => {
         id: 'plan-1',
         name: 'Enterprise Plan',
         description: 'Full tier',
+        versions: [
+          {
+            pricingMode: 'AUTOMATIC',
+            price: 5000,
+            currency: 'INR',
+            minSeats: null,
+            maxSeats: null,
+          },
+        ],
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -52,7 +65,12 @@ describe('PlansService', () => {
       mockPrismaService.auditLog.create.mockResolvedValue({ id: 'audit-1' });
 
       const result = await service.create(
-        { name: 'Enterprise Plan', description: 'Full tier' },
+        {
+          name: 'Enterprise Plan',
+          description: 'Full tier',
+          price: 5000,
+          pricingMode: 'AUTOMATIC',
+        },
         'admin-user-id',
       );
 
@@ -60,7 +78,18 @@ describe('PlansService', () => {
         data: {
           name: 'Enterprise Plan',
           description: 'Full tier',
+          versions: {
+            create: {
+              version: 1,
+              pricingMode: 'AUTOMATIC',
+              price: 5000,
+              currency: 'INR',
+              minSeats: undefined,
+              maxSeats: undefined,
+            },
+          },
         },
+        include: { versions: true },
       });
       expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith({
         data: {
@@ -71,6 +100,11 @@ describe('PlansService', () => {
           metadata: {
             name: 'Enterprise Plan',
             description: 'Full tier',
+            pricingMode: 'AUTOMATIC',
+            price: 5000,
+            currency: 'INR',
+            minSeats: null,
+            maxSeats: null,
           },
         },
       });
@@ -84,7 +118,7 @@ describe('PlansService', () => {
       });
 
       await expect(
-        service.create({ name: 'Enterprise Plan' }, 'admin-id'),
+        service.create({ name: 'Enterprise Plan', price: 1000 }, 'admin-id'),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -100,7 +134,10 @@ describe('PlansService', () => {
       expect(result).toEqual(mockList);
       expect(mockPrismaService.plan.findMany).toHaveBeenCalledWith({
         orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { subscriptions: true } } },
+        include: {
+          versions: { orderBy: { version: 'desc' }, take: 1 },
+          _count: { select: { subscriptions: true } },
+        },
       });
     });
   });
@@ -130,10 +167,20 @@ describe('PlansService', () => {
 
   describe('update', () => {
     it('should update a plan and record an audit log', async () => {
-      const existingPlan = { id: 'p1', name: 'Starter', description: 'Old' };
+      const existingPlan = {
+        id: 'p1',
+        name: 'Starter',
+        description: 'Old',
+        versions: [{ version: 1, price: 1000 }],
+      };
       mockPrismaService.plan.findUnique.mockResolvedValue(existingPlan);
       mockPrismaService.plan.findFirst.mockResolvedValue(null);
-      const updatedPlan = { id: 'p1', name: 'Starter Pro', description: 'New' };
+      const updatedPlan = {
+        id: 'p1',
+        name: 'Starter Pro',
+        description: 'New',
+        versions: [{ version: 1, price: 1000 }],
+      };
       mockPrismaService.plan.update.mockResolvedValue(updatedPlan);
       mockPrismaService.auditLog.create.mockResolvedValue({ id: 'audit-2' });
 
@@ -146,6 +193,7 @@ describe('PlansService', () => {
       expect(mockPrismaService.plan.update).toHaveBeenCalledWith({
         where: { id: 'p1' },
         data: { name: 'Starter Pro', description: 'New' },
+        include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
       });
       expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith({
         data: {
@@ -156,7 +204,38 @@ describe('PlansService', () => {
           metadata: { name: 'Starter Pro', description: 'New' },
         },
       });
-      expect(result).toEqual(updatedPlan);
+    });
+
+    it('should create new version if price changes', async () => {
+      const existingPlan = {
+        id: 'p1',
+        name: 'Starter',
+        description: 'Old',
+        versions: [{ version: 1, price: 1000 }],
+      };
+      mockPrismaService.plan.findUnique.mockResolvedValue(existingPlan);
+      mockPrismaService.plan.findFirst.mockResolvedValue(null);
+      mockPrismaService.plan.update.mockResolvedValue(existingPlan);
+
+      await service.update('p1', { price: 2000 }, 'admin-id');
+
+      expect(mockPrismaService.plan.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            versions: {
+              create: expect.objectContaining({
+                price: 2000,
+                version: 2,
+              }),
+            },
+          }),
+        }),
+      );
+      expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: 'PLAN_VERSION_CREATED' })
+        })
+      );
     });
 
     it('should throw NotFoundException when updating non-existent plan', async () => {
@@ -180,6 +259,77 @@ describe('PlansService', () => {
       await expect(
         service.update('p1', { name: 'Pro' }, 'admin-id'),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('should activate a plan and record an audit log', async () => {
+      const existingPlan = { id: 'p1', name: 'Starter', isActive: false };
+      mockPrismaService.plan.findUnique.mockResolvedValue(existingPlan);
+      const updatedPlan = { ...existingPlan, isActive: true };
+      mockPrismaService.plan.update.mockResolvedValue(updatedPlan);
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'audit-3' });
+
+      const result = await service.updateStatus('p1', true, 'admin-id');
+
+      expect(mockPrismaService.plan.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { isActive: true },
+      });
+      expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          action: 'PLAN_ACTIVATED',
+          actorId: 'admin-id',
+          targetId: 'p1',
+          targetType: 'Plan',
+          metadata: { isActive: true },
+        },
+      });
+      expect(result).toEqual(updatedPlan);
+    });
+
+    it('should deactivate a plan and record an audit log', async () => {
+      const existingPlan = { id: 'p1', name: 'Starter', isActive: true };
+      mockPrismaService.plan.findUnique.mockResolvedValue(existingPlan);
+      const updatedPlan = { ...existingPlan, isActive: false };
+      mockPrismaService.plan.update.mockResolvedValue(updatedPlan);
+      mockPrismaService.auditLog.create.mockResolvedValue({ id: 'audit-4' });
+
+      const result = await service.updateStatus('p1', false, 'admin-id');
+
+      expect(mockPrismaService.plan.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { isActive: false },
+      });
+      expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          action: 'PLAN_DEACTIVATED',
+          actorId: 'admin-id',
+          targetId: 'p1',
+          targetType: 'Plan',
+          metadata: { isActive: false },
+        },
+      });
+      expect(result).toEqual(updatedPlan);
+    });
+
+    it('should return existing plan if status is already correct', async () => {
+      const existingPlan = { id: 'p1', name: 'Starter', isActive: true };
+      mockPrismaService.plan.findUnique.mockResolvedValue(existingPlan);
+
+      const result = await service.updateStatus('p1', true, 'admin-id');
+
+      expect(mockPrismaService.plan.update).not.toHaveBeenCalled();
+      expect(mockPrismaService.auditLog.create).not.toHaveBeenCalled();
+      expect(result).toEqual(existingPlan);
+    });
+
+    it('should throw NotFoundException if plan not found', async () => {
+      mockPrismaService.plan.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus('invalid-id', false, 'admin-id'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
