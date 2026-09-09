@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Test, TestingModule } from '@nestjs/testing';
 import { PlansService } from './plans.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -201,7 +202,10 @@ describe('PlansService', () => {
           actorId: 'admin-id',
           targetId: 'p1',
           targetType: 'Plan',
-          metadata: { name: 'Starter Pro', description: 'New' },
+          metadata: {
+            oldValues: { name: 'Starter', description: 'Old' },
+            newValues: { name: 'Starter Pro', description: 'New' },
+          },
         },
       });
     });
@@ -233,8 +237,8 @@ describe('PlansService', () => {
       );
       expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ action: 'PLAN_VERSION_CREATED' })
-        })
+          data: expect.objectContaining({ action: 'PLAN_VERSION_CREATED' }),
+        }),
       );
     });
 

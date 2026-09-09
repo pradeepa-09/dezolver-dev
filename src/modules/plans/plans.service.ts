@@ -6,7 +6,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PlansService {
@@ -147,7 +146,7 @@ export class PlansService {
     let newVersionCreated = false;
     let nextVersionNum = 1;
     const latestVersion = plan.versions[0];
-    
+
     const priceHasChanged =
       updatePlanDto.price !== undefined &&
       updatePlanDto.price !== latestVersion?.price;
@@ -219,17 +218,58 @@ export class PlansService {
       },
     });
 
+    const oldPlanValues: Record<string, any> = {};
+    const newPlanValues: Record<string, any> = {};
+    if (updatePlanDto.name && updatePlanDto.name.trim() !== plan.name) {
+      oldPlanValues.name = plan.name;
+      newPlanValues.name = updatePlanDto.name.trim();
+    }
+    if (
+      updatePlanDto.description !== undefined &&
+      updatePlanDto.description?.trim() !== plan.description
+    ) {
+      oldPlanValues.description = plan.description;
+      newPlanValues.description = updatePlanDto.description?.trim() || null;
+    }
+
     await this.prisma.auditLog.create({
       data: {
         action: 'PLAN_UPDATED',
         actorId,
         targetId: plan.id,
         targetType: 'Plan',
-        metadata: updatePlanDto as Prisma.InputJsonValue,
+        metadata: {
+          oldValues: oldPlanValues,
+          newValues: newPlanValues,
+        },
       },
     });
 
     if (newVersionCreated) {
+      const oldVersionValues: Record<string, any> = {};
+      const newVersionValues: Record<string, any> = {};
+
+      if (priceHasChanged) {
+        oldVersionValues.price = latestVersion?.price;
+        newVersionValues.price = updatePlanDto.price;
+      }
+      if (pricingModeHasChanged) {
+        oldVersionValues.pricingMode = latestVersion?.pricingMode;
+        newVersionValues.pricingMode = updatePlanDto.pricingMode;
+      }
+      if (currencyHasChanged) {
+        oldVersionValues.currency = latestVersion?.currency;
+        newVersionValues.currency = updatePlanDto.currency;
+      }
+      if (minSeatsHasChanged) {
+        oldVersionValues.minSeats = latestVersion?.minSeats;
+        newVersionValues.minSeats = updatePlanDto.minSeats;
+      }
+      if (maxSeatsHasChanged) {
+        oldVersionValues.maxSeats = latestVersion?.maxSeats;
+        newVersionValues.maxSeats = updatePlanDto.maxSeats;
+      }
+
       await this.prisma.auditLog.create({
         data: {
           action: 'PLAN_VERSION_CREATED',
@@ -238,7 +278,8 @@ export class PlansService {
           targetType: 'Plan',
           metadata: {
             newVersion: true,
-            changes: updatePlanDto as Prisma.InputJsonValue,
+            oldValues: oldVersionValues,
+            newValues: newVersionValues,
           },
         },
       });

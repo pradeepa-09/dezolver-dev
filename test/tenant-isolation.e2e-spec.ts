@@ -23,7 +23,7 @@ describe('Tenant Isolation (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    
+
     prisma = app.get(PrismaService);
     await app.init();
 

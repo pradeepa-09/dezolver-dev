@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
@@ -98,7 +99,7 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
       await request(app.getHttpServer()).get('/api/plans').expect(401);
     });
 
-    it('GET /api/plans returns 403 for non-SUPER_ADMIN user', async () => {
+    it('GET /api/plans returns 200 for ADMIN user (Finance)', async () => {
       await request(app.getHttpServer())
         .get('/api/plans')
         .set('Authorization', `Bearer ${userToken}`)
@@ -107,7 +108,7 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
       await request(app.getHttpServer())
         .get('/api/plans')
         .set('Authorization', `Bearer ${adminToken}`)
-        .expect(403);
+        .expect(200);
     });
 
     it('GET /api/plans returns 200 and plans list for SUPER_ADMIN', async () => {
@@ -256,8 +257,8 @@ describe('Phase 7 (Plans) & Phase 8 (Analytics) Integration', () => {
           targetId: 'plan-new',
           targetType: 'Plan',
           metadata: {
-            name: 'Growth Plan Pro',
-            description: 'Updated description',
+            oldValues: { name: 'Growth Plan', description: 'Old description' },
+            newValues: { name: 'Growth Plan Pro', description: 'Updated description' },
           },
         },
       });

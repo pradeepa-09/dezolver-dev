@@ -30,8 +30,15 @@ async function bootstrap() {
   ].filter(Boolean) as string[];
 
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:')
+      ) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));

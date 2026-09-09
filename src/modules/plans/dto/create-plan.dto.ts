@@ -41,7 +41,9 @@ export class CreatePlanDto {
 
   @IsInt()
   @IsOptional()
-  @ValidateIf((o) => o.maxSeats !== undefined && o.minSeats !== undefined)
+  @ValidateIf(
+    (o: CreatePlanDto) => o.maxSeats !== undefined && o.minSeats !== undefined,
+  )
   @Min(1)
   maxSeats?: number;
 }

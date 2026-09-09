@@ -35,6 +35,6 @@ export const RolePermissions: Record<Role, Permission[]> = {
     'subscriptions:create',
     'subscriptions:update',
   ],
-  [Role.ADMIN]: ['colleges:read'],
+  [Role.ADMIN]: ['colleges:read', 'plans:read'],
   [Role.USER]: [],
 };
