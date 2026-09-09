@@ -7,11 +7,12 @@ import type {
   CreateCollegeResponse,
   ImpersonateResponse,
   ImpersonateStopResponse,
+  CollegeActivityLog,
 } from '@/types/colleges';
 
 /**
  * Isolated API service for College Management
- * Connects to NestJS Backend Phase 6 endpoints through the shared apiClient.
+ * Connects to NestJS Backend endpoints through the shared apiClient.
  */
 export const collegesApi = {
   /**
@@ -22,10 +23,19 @@ export const collegesApi = {
   },
 
   /**
-   * Get single college details with users: GET /colleges/:id
+   * Get single college details with users, subscriptions & activity: GET /colleges/:id
    */
   async getCollege(id: string): Promise<CollegeDetail> {
     return apiClient.get<CollegeDetail>(`/colleges/${encodeURIComponent(id)}`);
+  },
+
+  /**
+   * Get college-specific activity/audit logs: GET /colleges/:id/activity
+   */
+  async getCollegeActivity(id: string): Promise<CollegeActivityLog[]> {
+    return apiClient.get<CollegeActivityLog[]>(
+      `/colleges/${encodeURIComponent(id)}/activity`,
+    );
   },
 
   /**
@@ -66,7 +76,7 @@ export const collegesApi = {
   },
 
   /**
-   * Start 1-hour impersonation session as Finance Team (ADMIN): POST /colleges/:id/impersonate
+   * Start impersonation session as Finance Team (ADMIN): POST /colleges/:id/impersonate
    */
   async impersonateCollege(id: string): Promise<ImpersonateResponse> {
     return apiClient.post<ImpersonateResponse>(

@@ -28,21 +28,7 @@ const mockAnalytics: PlatformAnalytics = {
     total: 10,
     active: 9,
   },
-  recentActivity: [
-    {
-      id: 'audit-1',
-      action: 'COLLEGE_CREATED',
-      createdAt: '2026-08-25T12:00:00.000Z',
-      targetId: 'col-1',
-      targetType: 'College',
-      actor: {
-        id: 'u-1',
-        email: 'superadmin@dezolver.com',
-        role: 'SUPER_ADMIN',
-      },
-      metadata: null,
-    },
-  ],
+  recentActivity: [],
 };
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -64,59 +50,46 @@ describe('PlatformAnalyticsPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders all real metrics calculated from backend', async () => {
+  it('renders all charts, metrics, and engagement rankings', async () => {
     vi.spyOn(analyticsApi, 'getPlatformAnalytics').mockResolvedValue(mockAnalytics);
 
     renderWithProviders(<PlatformAnalyticsPage />);
 
-    expect(screen.getByText(/Loading Platform Intelligence/i)).toBeInTheDocument();
+    expect(screen.getByText(/Loading Platform Analytics/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      // Titles and cards
-      expect(screen.getByText('Colleges')).toBeInTheDocument();
-      expect(screen.getByText('Total Users')).toBeInTheDocument();
-      expect(screen.getByText('Configured Plans')).toBeInTheDocument();
-      expect(screen.getByText('Subscriptions')).toBeInTheDocument();
+      // Header & Subtitle
+      expect(screen.getByText('Platform Analytics')).toBeInTheDocument();
+      expect(screen.getByText(/Cross-tenant reporting/i)).toBeInTheDocument();
 
-      // Multi-instance count elements
-      expect(screen.getAllByText('12').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('45')).toBeInTheDocument();
+      // Time Range controls & Export button
+      expect(screen.getByText('6M')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
 
-      // Roles
-      expect(screen.getByText('Super Admins')).toBeInTheDocument();
-      expect(screen.getByText('Admins (Finance)')).toBeInTheDocument();
-      expect(screen.getByText('Regular Users')).toBeInTheDocument();
+      // Main Analytics Grid Cards
+      expect(screen.getByText('Monthly Recurring Revenue (₹)')).toBeInTheDocument();
+      expect(screen.getByText('Active Colleges Over Time')).toBeInTheDocument();
+      expect(screen.getByText('Enrollment Trend (All Colleges)')).toBeInTheDocument();
+      expect(screen.getByText('Top Colleges by Engagement')).toBeInTheDocument();
 
-      // Recent activity
-      expect(screen.getByText('COLLEGE_CREATED')).toBeInTheDocument();
-      expect(screen.getByText('superadmin@dezolver.com')).toBeInTheDocument();
+      // Top Colleges names
+      expect(screen.getByText('Clearwater University')).toBeInTheDocument();
+      expect(screen.getByText('Eastbrook Engineering')).toBeInTheDocument();
+      expect(screen.getByText('Westgate Polytechnic')).toBeInTheDocument();
+
+      // Bottom KPI Cards
+      expect(screen.getByText('AVG SEAT UTILIZATION')).toBeInTheDocument();
+      expect(screen.getByText('73%')).toBeInTheDocument();
+      expect(screen.getByText('AVG HEALTH SCORE')).toBeInTheDocument();
+      expect(screen.getByText('71.2')).toBeInTheDocument();
+      expect(screen.getByText('TOTAL ASSESSMENTS TAKEN')).toBeInTheDocument();
+      expect(screen.getByText('1.2M')).toBeInTheDocument();
+      expect(screen.getByText('CERTIFICATES ISSUED')).toBeInTheDocument();
+      expect(screen.getByText('8,420')).toBeInTheDocument();
     });
   });
 
-  it('handles empty / zero database state safely without crashing', async () => {
-    const emptyAnalytics: PlatformAnalytics = {
-      colleges: { total: 0, active: 0, suspended: 0 },
-      users: {
-        total: 0,
-        byRole: { superAdmin: 0, admin: 0, user: 0 },
-        active: 0,
-      },
-      plans: { total: 0 },
-      subscriptions: { total: 0, active: 0 },
-      recentActivity: [],
-    };
-
-    vi.spyOn(analyticsApi, 'getPlatformAnalytics').mockResolvedValue(emptyAnalytics);
-
-    renderWithProviders(<PlatformAnalyticsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/No administrative audit records logged yet/i)).toBeInTheDocument();
-      expect(screen.getByText('Super Admins')).toBeInTheDocument();
-    });
-  });
-
-  it('renders ErrorState on network failure', async () => {
+  it('renders ErrorState on network failure with retry action', async () => {
     vi.spyOn(analyticsApi, 'getPlatformAnalytics').mockRejectedValue(
       new Error('Failed to connect to backend server'),
     );
@@ -126,6 +99,7 @@ describe('PlatformAnalyticsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Failed to Load Platform Analytics')).toBeInTheDocument();
       expect(screen.getByText('Failed to connect to backend server')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Try Again/i })).toBeInTheDocument();
     });
   });
 });

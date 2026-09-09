@@ -15,7 +15,18 @@ describe('Real Backend ↔ Frontend Full Verification Suite', () => {
   const cookieJar: Record<string, string> = {};
   const originalFetch = globalThis.fetch;
 
-  beforeAll(() => {
+  let isBackendLive = false;
+
+  beforeAll(async () => {
+    try {
+      const health = await originalFetch('http://localhost:4000/api/health', {
+        signal: AbortSignal.timeout(1500),
+      });
+      isBackendLive = health.ok;
+    } catch {
+      isBackendLive = false;
+    }
+
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       if (init?.credentials === 'include' || !init?.credentials) {
@@ -55,6 +66,12 @@ describe('Real Backend ↔ Frontend Full Verification Suite', () => {
   afterAll(async () => {
     globalThis.fetch = originalFetch;
     apiClient.setAccessToken(null);
+  });
+
+  beforeEach((ctx: any) => {
+    if (!isBackendLive) {
+      ctx.skip();
+    }
   });
 
   describe('2. Authentication Integration Verification', () => {

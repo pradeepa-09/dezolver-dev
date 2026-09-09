@@ -101,6 +101,8 @@ describe('collegesApi', () => {
   it('calls POST /colleges/:id/impersonate for impersonateCollege()', async () => {
     const mockPost = vi.spyOn(apiClient, 'post').mockResolvedValue({
       accessToken: 'impersonation-jwt',
+      expiresIn: 3600,
+      expiresAt: '2026-08-25T11:00:00.000Z',
       financeUser: { id: 'u-1', email: 'finance@mit.edu' },
     });
 
@@ -108,6 +110,24 @@ describe('collegesApi', () => {
 
     expect(mockPost).toHaveBeenCalledWith('/colleges/col-1/impersonate', {});
     expect(result.accessToken).toBe('impersonation-jwt');
+    expect(result.expiresIn).toBe(3600);
+    expect(result.expiresAt).toBe('2026-08-25T11:00:00.000Z');
+  });
+
+  it('calls GET /colleges/:id/activity for getCollegeActivity()', async () => {
+    const mockGet = vi.spyOn(apiClient, 'get').mockResolvedValue([
+      {
+        id: 'act-1',
+        action: 'COLLEGE_CREATED',
+        createdAt: '2026-08-25T10:00:00.000Z',
+      },
+    ]);
+
+    const result = await collegesApi.getCollegeActivity('col-1');
+
+    expect(mockGet).toHaveBeenCalledWith('/colleges/col-1/activity');
+    expect(result).toHaveLength(1);
+    expect(result[0].action).toBe('COLLEGE_CREATED');
   });
 
   it('calls POST /colleges/:id/impersonate-stop with tokenOverride', async () => {

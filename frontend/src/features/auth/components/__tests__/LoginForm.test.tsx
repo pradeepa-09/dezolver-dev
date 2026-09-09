@@ -17,21 +17,24 @@ describe('LoginForm', () => {
       isAuthenticated: false,
       isLoading: false,
       login: mockLogin,
+      verifyMfa: vi.fn(),
       logout: vi.fn(),
       setUser: vi.fn(),
     });
   });
 
-  it('renders login form with email, password, and submit button', () => {
+  it('renders login form with email, password, remember me, forgot password, and submit button', () => {
     render(
       <MemoryRouter>
         <LoginForm />
       </MemoryRouter>,
     );
 
-    expect(screen.getByLabelText(/Email Address/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Password$/i, { selector: 'input' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Sign in to Console/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/EMAIL/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^PASSWORD$/i, { selector: 'input' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Remember me/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Forgot password\?/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Sign in$/i })).toBeInTheDocument();
   });
 
   it('displays client-side validation errors when submitted empty', async () => {
@@ -43,7 +46,7 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: /Sign in to Console/i }));
+    await user.click(screen.getByRole('button', { name: /^Sign in$/i }));
 
     expect(screen.getByText('Email address is required')).toBeInTheDocument();
     expect(screen.getByText('Password is required')).toBeInTheDocument();
@@ -59,9 +62,9 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText(/Email Address/i), 'not-an-email');
-    await user.type(screen.getByLabelText(/^Password$/i, { selector: 'input' }), 'validPassword123');
-    await user.click(screen.getByRole('button', { name: /Sign in to Console/i }));
+    await user.type(screen.getByLabelText(/EMAIL/i), 'not-an-email');
+    await user.type(screen.getByLabelText(/^PASSWORD$/i, { selector: 'input' }), 'validPassword123');
+    await user.click(screen.getByRole('button', { name: /^Sign in$/i }));
 
     expect(screen.getByText('Please enter a valid email address')).toBeInTheDocument();
     expect(mockLogin).not.toHaveBeenCalled();
@@ -79,14 +82,40 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText(/Email Address/i), ' admin@dezolver.com ');
-    await user.type(screen.getByLabelText(/^Password$/i, { selector: 'input' }), 'secretPassword123');
-    await user.click(screen.getByRole('button', { name: /Sign in to Console/i }));
+    await user.type(screen.getByLabelText(/EMAIL/i), ' admin@dezolver.com ');
+    await user.type(screen.getByLabelText(/^PASSWORD$/i, { selector: 'input' }), 'secretPassword123');
+    await user.click(screen.getByRole('button', { name: /^Sign in$/i }));
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith({
         email: 'admin@dezolver.com',
         password: 'secretPassword123',
+      });
+    });
+  });
+
+  it('navigates to /mfa with preserved state when mfaRequired is true', async () => {
+    const user = userEvent.setup();
+    mockLogin.mockResolvedValue({
+      mfaRequired: true,
+      mfaToken: 'temp-mfa-token-123',
+      user: { id: 'user-mfa-id', email: 'admin@dezolver.com', role: 'SUPER_ADMIN' },
+    });
+
+    render(
+      <MemoryRouter>
+        <LoginForm />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText(/EMAIL/i), 'admin@dezolver.com');
+    await user.type(screen.getByLabelText(/^PASSWORD$/i, { selector: 'input' }), 'validPassword123');
+    await user.click(screen.getByRole('button', { name: /^Sign in$/i }));
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        email: 'admin@dezolver.com',
+        password: 'validPassword123',
       });
     });
   });
@@ -101,14 +130,30 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
-    await user.type(screen.getByLabelText(/Email Address/i), 'admin@dezolver.com');
-    await user.type(screen.getByLabelText(/^Password$/i, { selector: 'input' }), 'wrongPassword');
-    await user.click(screen.getByRole('button', { name: /Sign in to Console/i }));
+    await user.type(screen.getByLabelText(/EMAIL/i), 'admin@dezolver.com');
+    await user.type(screen.getByLabelText(/^PASSWORD$/i, { selector: 'input' }), 'wrongPassword');
+    await user.click(screen.getByRole('button', { name: /^Sign in$/i }));
 
     await waitFor(() => {
       expect(
         screen.getByText(/Invalid email or password. Please check your credentials/i),
       ).toBeInTheDocument();
     });
+  });
+
+  it('shows informational feedback when clicking Forgot password', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <LoginForm />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Forgot password\?/i }));
+
+    expect(
+      screen.getByText(/Please contact your platform administrator to reset your credentials/i),
+    ).toBeInTheDocument();
   });
 });

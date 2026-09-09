@@ -25,8 +25,24 @@ export interface LoginCredentials {
 export interface LoginResponseData {
   accessToken?: string;
   user: User;
+  mfaRequired?: boolean;
   requiresMfa?: boolean;
   mfaToken?: string;
+}
+
+export interface VerifyOtpPayload {
+  userId: string;
+  otpCode: string;
+  mfaToken: string;
+}
+
+export interface MfaSetupResponse {
+  secret: string;
+  qrCode: string;
+}
+
+export interface MfaEnablePayload {
+  otpCode: string;
 }
 
 export interface AuthState {

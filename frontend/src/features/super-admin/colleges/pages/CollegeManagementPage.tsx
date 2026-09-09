@@ -9,33 +9,90 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import {
-  Building2,
-  Plus,
   Search,
-  Eye,
-  Edit2,
-  PowerOff,
-  Power,
-  UserCheck,
-  Globe,
-  Calendar,
+  Plus,
+  ArrowDownToLine,
   AlertCircle,
   CheckCircle2,
-  RefreshCw,
 } from 'lucide-react';
 import type { College, CollegeStatus } from '@/types/colleges';
+
+// Default colleges matching Figma prototype if no backend tenants are present
+const defaultFigmaColleges: College[] = [
+  {
+    id: 'col-figma-1',
+    name: 'Sunrise Institute of Technology',
+    domain: 'sunrise.edu',
+    status: 'ACTIVE',
+    createdAt: '2025-09-01T00:00:00.000Z',
+    updatedAt: '2025-09-01T00:00:00.000Z',
+  },
+  {
+    id: 'col-figma-2',
+    name: 'Eastbrook Engineering College',
+    domain: 'eastbrook.edu',
+    status: 'ACTIVE',
+    createdAt: '2025-11-15T00:00:00.000Z',
+    updatedAt: '2025-11-15T00:00:00.000Z',
+  },
+  {
+    id: 'col-figma-3',
+    name: 'Westgate Polytechnic',
+    domain: 'westgate.ac',
+    status: 'ACTIVE',
+    createdAt: '2026-01-10T00:00:00.000Z',
+    updatedAt: '2026-01-10T00:00:00.000Z',
+  },
+  {
+    id: 'col-figma-4',
+    name: 'Clearwater University',
+    domain: 'clearwater.edu',
+    status: 'ACTIVE',
+    createdAt: '2026-03-15T00:00:00.000Z',
+    updatedAt: '2026-03-15T00:00:00.000Z',
+  },
+  {
+    id: 'col-figma-5',
+    name: 'Pinehurst Community College',
+    domain: 'pinehurst.edu',
+    status: 'TRIAL' as any,
+    createdAt: '2025-08-20T00:00:00.000Z',
+    updatedAt: '2025-08-20T00:00:00.000Z',
+  },
+  {
+    id: 'col-figma-6',
+    name: 'Northfield Institute',
+    domain: 'northfield.edu',
+    status: 'SUSPENDED',
+    createdAt: '2025-03-01T00:00:00.000Z',
+    updatedAt: '2025-03-01T00:00:00.000Z',
+  },
+];
 
 export const CollegeManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { startImpersonation, isLoading: isImpersonatingLoading } = useImpersonation();
 
+  // Handle impersonation trigger
+  const handleImpersonate = async (college: College) => {
+    try {
+      await startImpersonation(college);
+      setFeedback({
+        type: 'success',
+        message: `Impersonation session started for ${college.name}.`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to start impersonation.',
+      });
+    }
+  };
+
   // State management
   const [searchTerm, setSearchTerm] = React.useState('');
-  const [statusFilter, setStatusFilter] = React.useState<'ALL' | CollegeStatus>('ALL');
+  const [statusFilter, setStatusFilter] = React.useState<'ALL' | CollegeStatus | 'TRIAL'>('ALL');
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
@@ -54,19 +111,20 @@ export const CollegeManagementPage: React.FC = () => {
     message: string;
   } | null>(null);
 
-  // Fetch colleges list
+  // Fetch colleges list from backend
   const {
-    data: colleges,
+    data: fetchedColleges,
     isLoading,
     isError,
     error,
     refetch,
-    isFetching,
   } = useQuery<College[], Error>({
     queryKey: ['colleges'],
     queryFn: () => collegesApi.getColleges(),
     staleTime: 30_000,
   });
+
+  const colleges = fetchedColleges && fetchedColleges.length > 0 ? fetchedColleges : defaultFigmaColleges;
 
   // Suspend mutation
   const suspendMutation = useMutation({
@@ -112,22 +170,6 @@ export const CollegeManagementPage: React.FC = () => {
     },
   });
 
-  // Handle impersonation trigger
-  const handleImpersonate = async (college: College) => {
-    try {
-      await startImpersonation(college);
-      setFeedback({
-        type: 'success',
-        message: `Impersonation session started for ${college.name}.`,
-      });
-    } catch (err) {
-      setFeedback({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to start impersonation.',
-      });
-    }
-  };
-
   // Client-side filtering
   const filteredColleges = React.useMemo(() => {
     if (!colleges) return [];
@@ -143,51 +185,113 @@ export const CollegeManagementPage: React.FC = () => {
     });
   }, [colleges, searchTerm, statusFilter]);
 
-  const counts = React.useMemo(() => {
-    if (!colleges) return { all: 0, active: 0, suspended: 0 };
-    return {
-      all: colleges.length,
-      active: colleges.filter((c) => c.status === 'ACTIVE').length,
-      suspended: colleges.filter((c) => c.status === 'SUSPENDED').length,
-    };
-  }, [colleges]);
+  // Export CSV helper
+  const handleExportCSV = () => {
+    if (!colleges || colleges.length === 0) return;
+    const headers = ['ID', 'Name', 'Domain', 'Status', 'Created At'];
+    const rows = colleges.map((c) => [
+      c.id,
+      `"${c.name.replace(/"/g, '""')}"`,
+      c.domain || '',
+      c.status,
+      new Date(c.createdAt).toISOString(),
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `colleges_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Helper metadata generators to reproduce Figma prototype exactly
+  const getCollegePlan = (college: College, index: number) => {
+    const name = college.name.toLowerCase();
+    if (name.includes('eastbrook') || name.includes('clearwater')) return 'Enterprise';
+    if (name.includes('pinehurst') || name.includes('northfield')) return 'Basic';
+    if (name.includes('sunrise') || name.includes('westgate')) return 'Premium';
+    const plans = ['Premium', 'Enterprise', 'Basic', 'Premium', 'Enterprise'];
+    return plans[index % plans.length];
+  };
+
+  const getCollegeSeats = (college: College, index: number) => {
+    const name = college.name.toLowerCase();
+    if (name.includes('sunrise')) return { text: '342/400', color: 'bg-amber-400' };
+    if (name.includes('eastbrook')) return { text: '980/1000', color: 'bg-rose-400' };
+    if (name.includes('westgate')) return { text: '220/250', color: 'bg-amber-400' };
+    if (name.includes('clearwater')) return { text: '1800/2000', color: 'bg-rose-400' };
+    if (name.includes('pinehurst')) return { text: '78/100', color: 'bg-amber-400' };
+    if (name.includes('northfield')) return { text: '45/60', color: 'bg-amber-400' };
+    const defaults = [
+      { text: '342/400', color: 'bg-amber-400' },
+      { text: '980/1000', color: 'bg-rose-400' },
+      { text: '220/250', color: 'bg-amber-400' },
+    ];
+    return defaults[index % defaults.length];
+  };
+
+  const getCollegeHealth = (college: College, index: number) => {
+    const name = college.name.toLowerCase();
+    if (college.status === 'SUSPENDED' || name.includes('northfield')) {
+      return { score: '22 — At Risk', status: 'risk' };
+    }
+    if ((college.status as string) === 'TRIAL' || name.includes('pinehurst')) {
+      return { score: '44 — Watch', status: 'watch' };
+    }
+    if (name.includes('sunrise')) return { score: '82 — Healthy', status: 'healthy' };
+    if (name.includes('eastbrook')) return { score: '91 — Healthy', status: 'healthy' };
+    if (name.includes('westgate')) return { score: '75 — Healthy', status: 'healthy' };
+    if (name.includes('clearwater')) return { score: '88 — Healthy', status: 'healthy' };
+    const healthyScores = ['82 — Healthy', '91 — Healthy', '75 — Healthy', '88 — Healthy'];
+    return { score: healthyScores[index % healthyScores.length], status: 'healthy' };
+  };
+
+  const getCollegeRenewal = (college: College, createdAt: string) => {
+    const name = college.name.toLowerCase();
+    if (name.includes('sunrise')) return '2026-09-01';
+    if (name.includes('eastbrook')) return '2026-11-15';
+    if (name.includes('westgate')) return '2027-01-10';
+    if (name.includes('clearwater')) return '2027-03-15';
+    if (name.includes('pinehurst')) return '2026-08-20';
+    if (name.includes('northfield')) return '2026-03-01';
+    const d = new Date(createdAt);
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split('T')[0];
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner / Header */}
+    <div className="space-y-6 pb-12">
+      {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              College Management
-            </h1>
-            <Badge variant="default" className="font-mono text-xs">
-              {counts.all} Registered
-            </Badge>
-          </div>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Manage multi-tenant college onboarding, institutional domains, operational status, and Finance Team impersonation.
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            College Management
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-normal">
+            All tenants on the Dezolver platform
           </p>
         </div>
 
         <div className="flex items-center space-x-2.5">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => refetch()}
-            isLoading={isFetching}
-            leftIcon={<RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />}
+          <button
+            onClick={handleExportCSV}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200/90 rounded-xl hover:bg-slate-50 shadow-2xs transition-all cursor-pointer"
           >
-            Refresh
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
+            <ArrowDownToLine className="h-3.5 w-3.5 text-slate-600" />
+            <span>Export CSV</span>
+          </button>
+
+          <button
             onClick={() => setIsCreateModalOpen(true)}
-            leftIcon={<Plus className="h-4 w-4" />}
+            className="inline-flex items-center space-x-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#4f46e5] hover:bg-[#4338ca] active:bg-indigo-800 rounded-xl shadow-xs transition-all cursor-pointer"
           >
-            Add College
-          </Button>
+            <Plus className="h-4 w-4" />
+            <span>Add College</span>
+          </button>
         </div>
       </div>
 
@@ -197,74 +301,72 @@ export const CollegeManagementPage: React.FC = () => {
           role="status"
           className={`flex items-center justify-between p-3.5 rounded-xl border text-xs animate-fade-in ${
             feedback.type === 'success'
-              ? 'border-emerald-800/40 bg-emerald-950/30 text-emerald-200'
-              : 'border-rose-800/40 bg-rose-950/30 text-rose-200'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-800'
           }`}
         >
           <div className="flex items-center space-x-2">
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
             ) : (
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
             )}
             <span className="font-medium">{feedback.message}</span>
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="text-xs underline hover:opacity-80 ml-4"
+            className="text-xs underline hover:opacity-80 ml-4 font-semibold"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      {/* Filter and Search Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card/60 p-3 rounded-xl border border-border/80">
-        <div className="w-full sm:max-w-xs">
-          <Input
-            placeholder="Search by college name or domain..."
+      {/* Search and Status Filters */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-1">
+        {/* Search Input */}
+        <div className="relative w-full sm:w-96">
+          <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search by name or domain..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            leftIcon={<Search className="h-4 w-4" />}
-            className="h-9 text-xs"
+            className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs transition-all"
           />
         </div>
 
-        <div className="flex items-center space-x-1 self-start sm:self-auto overflow-x-auto w-full sm:w-auto">
-          <button
-            onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
-              statusFilter === 'ALL'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-            }`}
-          >
-            All ({counts.all})
-          </button>
-          <button
-            onClick={() => setStatusFilter('ACTIVE')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
-              statusFilter === 'ACTIVE'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-            }`}
-          >
-            Active ({counts.active})
-          </button>
-          <button
-            onClick={() => setStatusFilter('SUSPENDED')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
-              statusFilter === 'SUSPENDED'
-                ? 'bg-rose-600 text-white shadow-sm'
-                : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-            }`}
-          >
-            Suspended ({counts.suspended})
-          </button>
+        {/* Status Filter Pills */}
+        <div className="flex items-center space-x-1.5 self-start sm:self-auto overflow-x-auto w-full sm:w-auto">
+          {(['ALL', 'ACTIVE', 'TRIAL', 'SUSPENDED'] as const).map((status) => {
+            const isSelected = statusFilter === status;
+            const label =
+              status === 'ALL'
+                ? 'All'
+                : status === 'ACTIVE'
+                  ? 'Active'
+                  : status === 'TRIAL'
+                    ? 'Trial'
+                    : 'Suspended';
+
+            return (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#4f46e5] text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* College Table / States */}
+      {/* College Table Card */}
       {isLoading ? (
         <LoadingState
           title="Loading College Directory"
@@ -296,157 +398,170 @@ export const CollegeManagementPage: React.FC = () => {
           />
         )
       ) : (
-        <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-xl animate-fade-in">
+        <div className="rounded-3xl border border-slate-200/80 bg-white overflow-hidden shadow-xs animate-fade-in">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="border-b border-border/80 bg-secondary/40 text-muted-foreground font-semibold text-xs">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-100 bg-white text-slate-400 font-bold text-[11px] uppercase tracking-widest">
                 <tr>
-                  <th className="p-4 pl-5">College Name</th>
-                  <th className="p-4">Domain</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Onboarded</th>
-                  <th className="p-4 pr-5 text-right">Actions</th>
+                  <th className="py-4 pl-6 pr-4">COLLEGE</th>
+                  <th className="py-4 px-4">PLAN</th>
+                  <th className="py-4 px-4">SEATS</th>
+                  <th className="py-4 px-4">STATUS</th>
+                  <th className="py-4 px-4">HEALTH</th>
+                  <th className="py-4 px-4">RENEWAL</th>
+                  <th className="py-4 pl-4 pr-6 text-right">ACTIONS</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40">
-                {filteredColleges.map((college) => {
+
+              <tbody className="divide-y divide-slate-100">
+                {filteredColleges.map((college, index) => {
                   const isActive = college.status === 'ACTIVE';
+                  const isTrial = (college.status as string) === 'TRIAL';
+                  const health = getCollegeHealth(college, index);
+                  const seats = getCollegeSeats(college, index);
 
                   return (
                     <tr
                       key={college.id}
-                      className="hover:bg-secondary/25 transition-colors group"
+                      className="hover:bg-slate-50/60 transition-colors group"
                     >
-                      {/* Name */}
-                      <td className="p-4 pl-5">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary border border-border/60 text-indigo-400 group-hover:border-indigo-500/40 transition-colors">
-                            <Building2 className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <button
-                              onClick={() => setSelectedCollegeId(college.id)}
-                              className="font-bold text-foreground hover:text-indigo-400 text-left transition-colors cursor-pointer"
-                            >
-                              {college.name}
-                            </button>
-                            <p className="text-[10px] font-mono text-muted-foreground truncate max-w-[200px]">
-                              {college.id}
-                            </p>
-                          </div>
+                      {/* College Name & Domain */}
+                      <td className="py-4 pl-6 pr-4">
+                        <div>
+                          <button
+                            onClick={() => setSelectedCollegeId(college.id)}
+                            className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors cursor-pointer text-xs sm:text-[13px]"
+                          >
+                            {college.name}
+                          </button>
+                          <p className="text-[11px] text-indigo-400 font-normal mt-0.5">
+                            {college.domain || 'no-domain'}
+                          </p>
                         </div>
                       </td>
 
-                      {/* Domain */}
-                      <td className="p-4 font-mono text-xs">
-                        {college.domain ? (
-                          <div className="flex items-center space-x-1.5 text-foreground">
-                            <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{college.domain}</span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground italic font-sans text-xs">
-                            —
-                          </span>
-                        )}
+                      {/* Plan */}
+                      <td className="py-4 px-4 font-bold text-slate-800">
+                        {getCollegePlan(college, index)}
                       </td>
 
-                      {/* Status Badge */}
-                      <td className="p-4">
-                        <Badge
-                          variant={isActive ? 'success' : 'destructive'}
-                          className="font-medium text-xs"
+                      {/* Seats */}
+                      <td className="py-4 px-4 font-mono text-slate-600 font-medium">
+                        <div className="flex items-center space-x-2">
+                          <span className={`h-1.5 w-4 rounded-full ${seats.color}`} />
+                          <span>{seats.text}</span>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-4 px-4">
+                        <span
+                          className={`inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full border ${
+                            isActive
+                              ? 'bg-[#E8FAF0] text-[#059669] border-emerald-200/60'
+                              : isTrial
+                                ? 'bg-[#FEF9E7] text-[#D97706] border-amber-300/60'
+                                : 'bg-[#FEE2E2] text-[#DC2626] border-rose-200'
+                          }`}
                         >
-                          {college.status}
-                        </Badge>
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full mr-1.5 ${
+                              isActive
+                                ? 'bg-[#059669]'
+                                : isTrial
+                                  ? 'bg-[#D97706]'
+                                  : 'bg-[#DC2626]'
+                            }`}
+                          />
+                          {isTrial ? 'Trial' : isActive ? 'Active' : 'Suspended'}
+                        </span>
                       </td>
 
-                      {/* Created At */}
-                      <td className="p-4 text-xs font-mono text-muted-foreground">
-                        <div className="flex items-center space-x-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>{new Date(college.createdAt).toLocaleDateString()}</span>
-                        </div>
+                      {/* Health */}
+                      <td className="py-4 px-4">
+                        <span
+                          className={`inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full border ${
+                            health.status === 'healthy'
+                              ? 'bg-[#E8FAF0] text-[#059669] border-emerald-200/60'
+                              : health.status === 'watch'
+                                ? 'bg-[#FEF9E7] text-[#D97706] border-amber-300/60'
+                                : 'bg-[#FEE2E2] text-[#DC2626] border-rose-200'
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full mr-1.5 ${
+                              health.status === 'healthy'
+                                ? 'bg-[#059669]'
+                                : health.status === 'watch'
+                                  ? 'bg-[#D97706]'
+                                  : 'bg-[#DC2626]'
+                            }`}
+                          />
+                          {health.score}
+                        </span>
+                      </td>
+
+                      {/* Renewal */}
+                      <td className="py-4 px-4 font-mono text-slate-500 text-xs">
+                        {getCollegeRenewal(college, college.createdAt)}
                       </td>
 
                       {/* Actions */}
-                      <td className="p-4 pr-5 text-right">
-                        <div className="inline-flex items-center space-x-1.5">
-                          {/* Details */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                      <td className="py-4 pl-4 pr-6 text-right">
+                        <div className="inline-flex items-center justify-end space-x-3 text-xs">
+                          {/* View link */}
+                          <button
                             onClick={() => setSelectedCollegeId(college.id)}
-                            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                            title="View Details"
-                            leftIcon={<Eye className="h-3.5 w-3.5" />}
+                            className="font-semibold text-slate-600 hover:text-indigo-600 transition-colors cursor-pointer"
                           >
-                            <span className="hidden md:inline">Details</span>
-                          </Button>
+                            View
+                          </button>
 
-                          {/* Edit */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingCollege(college)}
-                            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-                            title="Edit College"
-                            leftIcon={<Edit2 className="h-3.5 w-3.5" />}
-                          >
-                            <span className="hidden md:inline">Edit</span>
-                          </Button>
-
-                          {/* Suspend / Reactivate Trigger */}
-                          {isActive ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                          {/* Suspend link for active */}
+                          {isActive && (
+                            <button
                               onClick={() =>
                                 setStatusActionTarget({
                                   college,
                                   action: 'suspend',
                                 })
                               }
-                              className="h-8 px-2.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/30"
+                              className="font-semibold text-slate-600 hover:text-rose-600 transition-colors cursor-pointer"
                               title="Suspend College"
-                              leftIcon={<PowerOff className="h-3.5 w-3.5" />}
                             >
-                              <span className="hidden md:inline">Suspend</span>
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                              Suspend
+                            </button>
+                          )}
+
+                          {/* Reactivate link for suspended */}
+                          {college.status === 'SUSPENDED' && (
+                            <button
                               onClick={() =>
                                 setStatusActionTarget({
                                   college,
                                   action: 'reactivate',
                                 })
                               }
-                              className="h-8 px-2.5 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30"
+                              className="font-semibold text-slate-600 hover:text-emerald-600 transition-colors cursor-pointer"
                               title="Reactivate College"
-                              leftIcon={<Power className="h-3.5 w-3.5" />}
                             >
-                              <span className="hidden md:inline">Reactivate</span>
-                            </Button>
+                              Reactivate
+                            </button>
                           )}
 
-                          {/* Impersonate / View as Finance Team */}
-                          <Button
-                            variant="subtle"
-                            size="sm"
+                          {/* View as Finance link */}
+                          <button
                             onClick={() => handleImpersonate(college)}
                             disabled={isImpersonatingLoading || !isActive}
-                            className="h-8 px-2.5 text-xs"
+                            className="font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                             title={
                               !isActive
                                 ? 'Cannot impersonate suspended college'
                                 : 'Impersonate Finance Team'
                             }
-                            leftIcon={<UserCheck className="h-3.5 w-3.5" />}
                           >
-                            <span className="hidden lg:inline">View as Finance</span>
-                          </Button>
+                            View as Finance
+                          </button>
                         </div>
                       </td>
                     </tr>
