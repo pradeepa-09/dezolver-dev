@@ -98,7 +98,13 @@ export class CollegesService {
       where: { id },
       include: {
         users: {
-          select: { id: true, email: true, role: true, isActive: true },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            isActive: true,
+            createdAt: true,
+          },
         },
         subscriptions: {
           select: {
@@ -120,7 +126,57 @@ export class CollegesService {
     if (!college) {
       throw new NotFoundException('College not found');
     }
-    return college;
+
+    const activityLogs = await this.getActivity(id);
+
+    return {
+      ...college,
+      activityLogs,
+    };
+  }
+
+  async getActivity(id: string) {
+    const college = await this.prisma.college.findUnique({ where: { id } });
+    if (!college) {
+      throw new NotFoundException('College not found');
+    }
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { targetId: id },
+          { targetType: 'College', targetId: id },
+          { metadata: { path: ['targetCollegeId'], equals: id } },
+          { metadata: { path: ['collegeId'], equals: id } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        actor: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      createdAt: log.createdAt,
+      targetId: log.targetId,
+      targetType: log.targetType,
+      actor: log.actor
+        ? {
+            id: log.actor.id,
+            email: log.actor.email,
+            role: log.actor.role,
+          }
+        : null,
+      metadata: log.metadata,
+    }));
   }
 
   async update(
@@ -220,6 +276,10 @@ export class CollegesService {
       throw new NotFoundException('College not found');
     }
 
+    if (college.status === 'SUSPENDED') {
+      throw new BadRequestException('Cannot impersonate a suspended college');
+    }
+
     const financeAdmin = await this.prisma.user.findFirst({
       where: { collegeId: id, role: 'ADMIN', isActive: true },
     });
@@ -230,6 +290,11 @@ export class CollegesService {
       );
     }
 
+    const expiresInSeconds = 3600;
+    const expiresAt = new Date(
+      Date.now() + expiresInSeconds * 1000,
+    ).toISOString();
+
     const payload = {
       sub: financeAdmin.id,
       role: financeAdmin.role,
@@ -239,7 +304,9 @@ export class CollegesService {
       jti: crypto.randomUUID(),
     };
 
-    const token = this.jwtService.sign(payload, { expiresIn: '1h' });
+    const token = this.jwtService.sign(payload, {
+      expiresIn: `${expiresInSeconds}s`,
+    });
 
     await this.prisma.auditLog.create({
       data: {
@@ -253,6 +320,8 @@ export class CollegesService {
 
     return {
       accessToken: token,
+      expiresIn: expiresInSeconds,
+      expiresAt,
       financeUser: { id: financeAdmin.id, email: financeAdmin.email },
     };
   }

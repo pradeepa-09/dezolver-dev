@@ -16,6 +16,7 @@ const mockPrismaService = {
   },
   auditLog: {
     create: jest.fn(),
+    findMany: jest.fn(),
   },
   $transaction: jest.fn(),
 };

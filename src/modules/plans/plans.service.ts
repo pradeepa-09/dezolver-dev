@@ -147,7 +147,7 @@ export class PlansService {
     let newVersionCreated = false;
     let nextVersionNum = 1;
     const latestVersion = plan.versions[0];
-    
+
     const priceHasChanged =
       updatePlanDto.price !== undefined &&
       updatePlanDto.price !== latestVersion?.price;

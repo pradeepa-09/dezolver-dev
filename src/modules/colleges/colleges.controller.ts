@@ -43,6 +43,12 @@ export class CollegesController {
     return this.collegesService.findOne(id);
   }
 
+  @Get(':id/activity')
+  @RequirePermission('colleges:read')
+  getActivity(@Param('id', ParseUUIDPipe) id: string) {
+    return this.collegesService.getActivity(id);
+  }
+
   @Patch(':id')
   @RequirePermission('colleges:update')
   update(

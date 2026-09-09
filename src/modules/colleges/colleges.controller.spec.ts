@@ -8,6 +8,7 @@ const mockCollegesService = {
   create: jest.fn(),
   findAll: jest.fn(),
   findOne: jest.fn(),
+  getActivity: jest.fn(),
   update: jest.fn(),
   suspend: jest.fn(),
   reactivate: jest.fn(),

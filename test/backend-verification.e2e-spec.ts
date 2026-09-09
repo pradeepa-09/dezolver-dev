@@ -406,6 +406,35 @@ describe('Backend Verification (e2e)', () => {
         .expect(403);
     });
 
+    it('cannot impersonate suspended college -> 400', async () => {
+      // Create a temporary suspended college
+      const suspendedCollege = await prisma.college.create({
+        data: { name: "Suspended College", domain: "http://suspended.example.com", status: "SUSPENDED" }
+      });
+      await prisma.user.create({
+        data: { email: "finance@suspended.example.com", password: "hash", role: "ADMIN", collegeId: suspendedCollege.id, isActive: true }
+      });
+
+      await request(app.getHttpServer())
+        .post(`/colleges/${suspendedCollege.id}/impersonate`)
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .expect(400);
+
+      await prisma.user.deleteMany({ where: { collegeId: suspendedCollege.id } });
+      await prisma.college.delete({ where: { id: suspendedCollege.id } });
+    });
+
+    it('GET /colleges/:id/activity -> returns activity logs', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/colleges/${createdCollegeId}/activity`)
+        .set("Authorization", `Bearer ${superAdminToken}`)
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBeGreaterThan(0);
+      expect(response.body[0].action).toBeDefined();
+    });
+
     it('impersonation -> successful', async () => {
       const response = await request(app.getHttpServer())
         .post(`/colleges/${createdCollegeId}/impersonate`)
@@ -413,6 +442,8 @@ describe('Backend Verification (e2e)', () => {
         .expect(201);
 
       expect(response.body.accessToken).toBeDefined();
+      expect(response.body.expiresAt).toBeDefined();
+      expect(response.body.expiresIn).toBe(3600);
       impersonationToken = response.body.accessToken;
 
       const decoded = jwtService.decode(response.body.accessToken);

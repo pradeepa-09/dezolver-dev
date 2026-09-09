@@ -190,6 +190,7 @@ describe('PlansService', () => {
         'admin-id',
       );
 
+      expect(result).toEqual(updatedPlan);
       expect(mockPrismaService.plan.update).toHaveBeenCalledWith({
         where: { id: 'p1' },
         data: { name: 'Starter Pro', description: 'New' },
@@ -233,8 +234,8 @@ describe('PlansService', () => {
       );
       expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ action: 'PLAN_VERSION_CREATED' })
-        })
+          data: expect.objectContaining({ action: 'PLAN_VERSION_CREATED' }),
+        }),
       );
     });
 
